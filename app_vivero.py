@@ -119,16 +119,22 @@ with tab_dash:
 
   total_recaudado = df_ventas["total"].sum() if not df_ventas.empty else 0.0
   cant_ventas = len(df_ventas)
-  valor_stock = (
-      (df_productos["precio_venta"] * df_productos["stock_actual"]).sum()
-      if not df_productos.empty
-      else 0.0
-  )
-  stock_bajo = (
-      len(df_productos[df_productos["stock_actual"] < 5])
-      if not df_productos.empty
-      else 0
-  )
+
+  # Cálculo seguro de valor de inventario forzando tipos numéricos
+  if not df_productos.empty:
+    df_productos["precio_venta"] = pd.to_numeric(
+        df_productos["precio_venta"], errors="coerce"
+    ).fillna(0)
+    df_productos["stock_actual"] = pd.to_numeric(
+        df_productos["stock_actual"], errors="coerce"
+    ).fillna(0)
+    valor_stock = (
+        df_productos["precio_venta"] * df_productos["stock_actual"]
+    ).sum()
+    stock_bajo = len(df_productos[df_productos["stock_actual"] < 5])
+  else:
+    valor_stock = 0.0
+    stock_bajo = 0
 
   col1, col2, col3, col4 = st.columns(4)
   col1.metric("💰 Facturación Total", f"${total_recaudado:,.2f}")
@@ -167,11 +173,14 @@ with tab_pos:
     prod_id = opciones_prod[prod_seleccionado_str]
 
     prod_info = df_productos[df_productos["id"] == prod_id].iloc[0]
-    stock_disponible = prod_info["stock_actual"]
-    precio_unitario = prod_info["precio_venta"]
+    stock_disponible = int(prod_info["stock_actual"])
+    precio_unitario = float(prod_info["precio_venta"])
 
     cantidad = st.number_input(
-        "Cantidad a llevar:", min_value=1, max_value=int(stock_disponible), step=1
+        "Cantidad a llevar:",
+        min_value=1,
+        max_value=max(1, stock_disponible),
+        step=1,
     )
     medio_pago = st.radio(
         "Medio de Pago:",
@@ -183,28 +192,31 @@ with tab_pos:
     st.info(f"**Total a Pagar:** ${subtotal:,.2f}")
 
     if st.button("✅ Confirmar Venta", type="primary"):
-      cursor = conn.cursor()
-      cursor.execute(
-          "INSERT INTO ventas (total, medio_pago) VALUES (?, ?)",
-          (subtotal, medio_pago),
-      )
-      venta_id = cursor.lastrowid
+      if stock_disponible <= 0:
+        st.error("No hay stock disponible de este producto.")
+      else:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO ventas (total, medio_pago) VALUES (?, ?)",
+            (subtotal, medio_pago),
+        )
+        venta_id = cursor.lastrowid
 
-      cursor.execute(
-          "INSERT INTO detalle_ventas (venta_id, producto_id, cantidad,"
-          " subtotal) VALUES (?, ?, ?, ?)",
-          (venta_id, prod_id, cantidad, subtotal),
-      )
+        cursor.execute(
+            "INSERT INTO detalle_ventas (venta_id, producto_id, cantidad,"
+            " subtotal) VALUES (?, ?, ?, ?)",
+            (venta_id, prod_id, cantidad, subtotal),
+        )
 
-      nuevo_stock = stock_disponible - cantidad
-      cursor.execute(
-          "UPDATE productos SET stock_actual = ? WHERE id = ?",
-          (nuevo_stock, prod_id),
-      )
+        nuevo_stock = stock_disponible - cantidad
+        cursor.execute(
+            "UPDATE productos SET stock_actual = ? WHERE id = ?",
+            (nuevo_stock, prod_id),
+        )
 
-      conn.commit()
-      st.success(f"¡Venta registrada con éxito! Total cobrado: ${subtotal:,.2f}")
-      st.rerun()
+        conn.commit()
+        st.success(f"¡Venta registrada con éxito! Total cobrado: ${subtotal:,.2f}")
+        st.rerun()
 
 # ==================== 3. CONTROL DE STOCK ====================
 with tab_stock:
