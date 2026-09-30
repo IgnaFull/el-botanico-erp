@@ -58,11 +58,45 @@ def inicializar_bd():
 
 inicializar_bd()
 
-# --- 2. TÍTULO PRINCIPAL ---
+# --- 2. SISTEMA DE LOGIN / CONTRASEÑA ---
+CLAVE_ACCESO = (
+    "botanico2026"  # Podés cambiar esta contraseña cuando quieras
+)
+
+if "autenticado" not in st.session_state:
+  st.session_state.autenticado = False
+
+if not st.session_state.autenticado:
+  st.title("🌿 El Botánico - Acceso Restringido")
+  st.markdown("---")
+  st.info(
+      "🔒 Este sistema es privado para la administración de El Botánico."
+      " Ingresá la contraseña para continuar."
+  )
+
+  password_ingresada = st.text_input("Contraseña de acceso:", type="password")
+
+  if st.button("🔑 Ingresar", type="primary"):
+    if password_ingresada == CLAVE_ACCESO:
+      st.session_state.autenticado = True
+      st.success("¡Acceso concedido!")
+      st.rerun()
+    else:
+      st.error("❌ Contraseña incorrecta. Intentá nuevamente.")
+
+  # Detiene la ejecución aquí si no está logueado
+  st.stop()
+
+# --- 3. TÍTULO PRINCIPAL (Una vez logueado) ---
 st.title("🌿 El Botánico - Sistema de Gestión")
 st.markdown("---")
 
-# --- 3. PESTAÑAS HORIZONTALES DIRECTAS ---
+# Botón para cerrar sesión en la barra lateral o arriba
+if st.sidebar.button("🔒 Cerrar Sesión"):
+  st.session_state.autenticado = False
+  st.rerun()
+
+# --- 4. PESTAÑAS HORIZONTALES DIRECTAS ---
 tab_dash, tab_pos, tab_historial, tab_stock, tab_nuevo, tab_eliminar, tab_cat = (
     st.tabs([
         "📊 Dashboard",
@@ -247,7 +281,7 @@ with tab_nuevo:
   df_cat = pd.read_sql("SELECT id, nombre FROM categorias", conn)
 
   if df_cat.empty:
-    st.warning("⚠️ Primero creá una categoría en '🗂️️ Gestión de Categorías'.")
+    st.warning("⚠️ Primero creá una categoría en '🗂️ Gestión de Categorías'.")
   else:
     opciones_cat = {row["nombre"]: row["id"] for _, row in df_cat.iterrows()}
 
@@ -390,7 +424,6 @@ with tab_cat:
     st.markdown("---")
     st.markdown("### ⚙️ Zona de Mantenimiento")
 
-    # Inicializar la variable de estado si no existe
     if "confirmar_reinicio" not in st.session_state:
       st.session_state.confirmar_reinicio = False
 
@@ -402,7 +435,7 @@ with tab_cat:
       st.error(
           "⚠️ **¡ADVERTENCIA DE REINICIO DE FÁBRICA!** ⚠️\n\nEstás a punto de"
           " borrar **absolutamente todo**: productos, historial de ventas y"
-          " categorías. Esta acción no se puede deshacer."
+          " categories. Esta acción no se puede deshacer."
       )
 
       col_a, col_b = st.columns(2)
