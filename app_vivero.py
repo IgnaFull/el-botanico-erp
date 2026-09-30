@@ -101,13 +101,11 @@ def inicializar_bd():
     }
 
     for padre, subs in categorias_iniciales.items():
-      # Insertar categoría principal
       cursor.execute(
           "INSERT INTO categorias (nombre, categoria_padre_id) VALUES (?, NULL)",
           (padre,),
       )
       padre_id = cursor.lastrowid
-      # Insertar subcategorías
       for sub in subs:
         cursor.execute(
             "INSERT INTO categorias (nombre, categoria_padre_id) VALUES (?,"
@@ -438,7 +436,7 @@ with tab_nuevo:
 
 # ==================== 6. ELIMINAR PRODUCTO ====================
 with tab_eliminar:
-  st.subheader("🗑️ Eliminar Producto del Inventario")
+  st.subheader("🗑️️ Eliminar Producto del Inventario")
 
   df_productos_del = pd.read_sql(
       "SELECT id, sku, nombre FROM productos", conn
@@ -578,7 +576,7 @@ with tab_cat:
       if "confirmar_del_cat" not in st.session_state:
         st.session_state.confirmar_del_cat = False
 
-      if not st.confirmar_del_cat:  # type: ignore
+      if not st.session_state.confirmar_del_cat:
         if st.button("❌ Eliminar Categoría", type="secondary"):
           st.session_state.confirmar_del_cat = True
           st.rerun()
