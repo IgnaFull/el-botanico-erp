@@ -149,7 +149,6 @@ with tab_pos:
 
     prod_info = df_productos[df_productos["id"] == prod_id].iloc[0]
 
-    # Conversión segura con .fillna(0) para evitar errores con nulos
     stock_disponible = int(
         pd.to_numeric(
             pd.Series([prod_info["stock_actual"]]), errors="coerce"
@@ -255,8 +254,10 @@ with tab_nuevo:
     cat_elegida = st.selectbox("Categoría:", list(opciones_cat.keys()))
     cat_id = opciones_cat[cat_elegida]
 
-    sku = st.text_input("Código SKU (Ej: PLT-INT-01):")
-    nombre_prod = st.text_input("Nombre de la Planta o Producto:")
+    sku = st.text_input("Código SKU:", placeholder="Ej: PLT-INT-01")
+    nombre_prod = st.text_input(
+        "Nombre de la Planta o Producto:", placeholder="Ej: Monstera Deliciosa"
+    )
     precio = st.number_input("Precio de Venta ($):", min_value=0.0, step=100.0)
     stock = st.number_input("Stock Inicial:", min_value=0, step=1)
 
@@ -321,7 +322,11 @@ with tab_cat:
 
   with col1:
     st.markdown("### Crear Nueva Categoría")
-    nueva_cat = st.text_input("Nombre de la categoría o subcategoría:")
+    nueva_cat = st.text_input(
+        "Nombre de la categoría o subcategoría:",
+        placeholder="Ej: Plantas de Interior, Sustratos, Macetas",
+    )
+
     df_padres = pd.read_sql(
         "SELECT id, nombre FROM categorias WHERE categoria_padre_id IS NULL",
         conn,
@@ -336,17 +341,53 @@ with tab_cat:
     padre_id = opciones_padres[padre_elegido]
 
     if st.button("➕ Crear Categoría"):
-      if nueva_cat:
+      if not nueva_cat.strip():
+        st.warning("Escribí un nombre para la categoría.")
+      else:
+        # Verificar si ya existe una categoría con el mismo nombre (sin distinguir mayúsculas)
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO categorias (nombre, categoria_padre_id) VALUES (?, ?)",
-            (nueva_cat, padre_id),
+            "SELECT COUNT(*) FROM categorias WHERE LOWER(nombre) = LOWER(?)",
+            (nueva_cat.strip(),),
         )
+        existe = cursor.fetchone()[0]
+
+        if existe > 0:
+          st.error(
+              f"⚠️️ La categoría '{nueva_cat.strip()}' ya existe en el sistema."
+          )
+        else:
+          cursor.execute(
+              "INSERT INTO categorias (nombre, categoria_padre_id) VALUES (?,"
+              " ?)",
+              (nueva_cat.strip(), padre_id),
+          )
+          conn.commit()
+          st.success(f"¡Categoría '{nueva_cat.strip()}' creada con éxito!")
+          st.rerun()
+
+    st.markdown("---")
+    st.markdown("### Eliminar Categoría")
+    df_cat_del = pd.read_sql("SELECT id, nombre FROM categorias", conn)
+    if df_cat_del.empty:
+      st.info("No hay categorías para eliminar.")
+    else:
+      opciones_cat_del = {
+          f"{row['nombre']} (ID: {row['id']})": row["id"]
+          for _, row in df_cat_del.iterrows()
+      }
+      cat_a_borrar_str = st.selectbox(
+          "Seleccioná la categoría a borrar:", list(opciones_cat_del.keys())
+      )
+      id_cat_borrar = opciones_cat_del[cat_a_borrar_str]
+
+      if st.button("❌ Eliminar Categoría", type="secondary"):
+        cursor = conn.cursor()
+        # Borrar categoría
+        cursor.execute("DELETE FROM categorias WHERE id = ?", (id_cat_borrar,))
         conn.commit()
-        st.success("Categoría creada con éxito.")
+        st.success("¡Categoría eliminada con éxito!")
         st.rerun()
-      else:
-        st.warning("Escribí un nombre.")
 
   with col2:
     st.markdown("### Categorías Existentes")
