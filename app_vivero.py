@@ -130,7 +130,10 @@ with tab_pos:
   )
 
   if df_productos.empty:
-    st.warning("No hay productos disponibles para la venta.")
+    st.warning(
+        "⚠️ No hay productos disponibles para la venta. Cargá productos"
+        " primero."
+    )
   else:
     opciones_prod = {
         f"{row['nombre']} (Stock: {row['stock_actual']} - ${row['precio_venta']})": row[
@@ -145,8 +148,8 @@ with tab_pos:
     prod_id = opciones_prod[prod_seleccionado_str]
 
     prod_info = df_productos[df_productos["id"] == prod_id].iloc[0]
-    stock_disponible = int(prod_info["stock_actual"])
-    precio_unitario = float(prod_info["precio_venta"])
+    stock_disponible = int(pd.to_numeric(prod_info["stock_actual"], errors="coerce"))
+    precio_unitario = float(pd.to_numeric(prod_info["precio_venta"], errors="coerce"))
 
     cantidad = st.number_input(
         "Cantidad a llevar:",
