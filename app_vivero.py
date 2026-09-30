@@ -59,43 +59,11 @@ def inicializar_bd():
 
 inicializar_bd()
 
-# --- 2. SISTEMA DE LOGIN / CONTRASEÑA ---
-CLAVE_ACCESO = "botanico2026"
-
-if "autenticado" not in st.session_state:
-  st.session_state.autenticado = False
-
-if not st.session_state.autenticado:
-  st.title("🌿 El Botánico - Acceso Restringido")
-  st.markdown("---")
-  st.info(
-      "🔒 Este sistema es privado para la administración de El Botánico."
-      " Ingresá la contraseña para continuar."
-  )
-
-  password_ingresada = st.text_input(
-      "Contraseña de acceso:", type="password", placeholder="Ej: botanico2026"
-  )
-
-  if st.button("🔑 Ingresar", type="primary"):
-    if password_ingresada == CLAVE_ACCESO:
-      st.session_state.autenticado = True
-      st.success("¡Acceso concedido!")
-      st.rerun()
-    else:
-      st.error("❌ Contraseña incorrecta. Intentá nuevamente.")
-
-  st.stop()
-
-# --- 3. TÍTULO PRINCIPAL (Una vez logueado) ---
+# --- 2. TÍTULO PRINCIPAL ---
 st.title("🌿 El Botánico - Sistema de Gestión")
 st.markdown("---")
 
-if st.sidebar.button("🔒 Cerrar Sesión"):
-  st.session_state.autenticado = False
-  st.rerun()
-
-# --- 4. PESTAÑAS HORIZONTALES DIRECTAS ---
+# --- 3. PESTAÑAS HORIZONTALES DIRECTAS ---
 tab_dash, tab_pos, tab_historial, tab_stock, tab_nuevo, tab_eliminar, tab_cat = (
     st.tabs([
         "📊 Dashboard",
@@ -546,7 +514,7 @@ with tab_cat:
             st.rerun()
 
     st.markdown("---")
-    st.markdown("### ⚙️ Zona de Mantenimiento")
+    st.markdown("### ⚙️️ Zona de Mantenimiento")
 
     if "confirmar_reinicio" not in st.session_state:
       st.session_state.confirmar_reinicio = False
