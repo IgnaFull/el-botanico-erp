@@ -94,9 +94,10 @@ st.title("🌿 El Botánico - Sistema de Gestión")
 st.markdown("---")
 
 # --- 3. PESTAÑAS HORIZONTALES DIRECTAS ---
-tab_dash, tab_pos, tab_stock, tab_nuevo, tab_cat = st.tabs([
+tab_dash, tab_pos, tab_historial, tab_stock, tab_nuevo, tab_cat = st.tabs([
     "📊 Dashboard",
     "🛒 Registrar Venta (POS)",
+    "📜 Historial",
     "📦 Control de Stock",
     "➕ Nuevo Producto",
     "🗂️ Gestión de Categorías",
@@ -120,7 +121,6 @@ with tab_dash:
   total_recaudado = df_ventas["total"].sum() if not df_ventas.empty else 0.0
   cant_ventas = len(df_ventas)
 
-  # Cálculo seguro de valor de inventario forzando tipos numéricos
   if not df_productos.empty:
     df_productos["precio_venta"] = pd.to_numeric(
         df_productos["precio_venta"], errors="coerce"
@@ -218,7 +218,29 @@ with tab_pos:
         st.success(f"¡Venta registrada con éxito! Total cobrado: ${subtotal:,.2f}")
         st.rerun()
 
-# ==================== 3. CONTROL DE STOCK ====================
+# ==================== 3. HISTORIAL DE VENTAS ====================
+with tab_historial:
+  st.subheader("📜 Registro Detallado de Ventas")
+
+  df_historial = pd.read_sql(
+      """
+        SELECT v.id as 'ID Venta', v.fecha as 'Fecha y Hora', 
+               p.nombre as 'Producto', d.cantidad as 'Cantidad', 
+               d.subtotal as 'Subtotal ($)', v.medio_pago as 'Medio de Pago'
+        FROM ventas v
+        JOIN detalle_ventas d ON v.id = d.venta_id
+        JOIN productos p ON d.producto_id = p.id
+        ORDER BY v.id DESC
+    """,
+      conn,
+  )
+
+  if not df_historial.empty:
+    st.dataframe(df_historial, use_container_width=True)
+  else:
+    st.info("Aún no se han registrado ventas.")
+
+# ==================== 4. CONTROL DE STOCK ====================
 with tab_stock:
   st.subheader("Auditoría de Inventario")
   df_stock = pd.read_sql(
@@ -231,7 +253,7 @@ with tab_stock:
   )
   st.dataframe(df_stock, use_container_width=True)
 
-# ==================== 4. NUEVO PRODUCTO ====================
+# ==================== 5. NUEVO PRODUCTO ====================
 with tab_nuevo:
   st.subheader("Agregar Planta o Insumo")
 
@@ -248,7 +270,7 @@ with tab_nuevo:
 
   if st.button("💾 Guardar Producto", type="primary"):
     if not sku or not nombre_prod:
-      st.error("Por favor completa el código SKU y el nombre.")
+      st.error("Por forma completa el código SKU y el nombre.")
     else:
       try:
         cursor = conn.cursor()
@@ -264,7 +286,7 @@ with tab_nuevo:
       except sqlite3.IntegrityError:
         st.error(f"El código SKU '{sku}' ya existe. Ingresá otro.")
 
-# ==================== 5. GESTIÓN DE CATEGORÍAS ====================
+# ==================== 6. GESTIÓN DE CATEGORÍAS ====================
 with tab_cat:
   st.subheader("Administrar Categorías y Subcategorías")
 
