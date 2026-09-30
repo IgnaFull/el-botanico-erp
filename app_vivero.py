@@ -53,6 +53,68 @@ def inicializar_bd():
         )
     """)
 
+  # --- CARGAR CATEGORÍAS Y SUBCATEGORÍAS POR DEFECTO SI LA TABLA ESTÁ VACÍA ---
+  cursor.execute("SELECT COUNT(*) FROM categorias")
+  if cursor.fetchone()[0] == 0:
+    categorias_iniciales = {
+        "Plantas": [
+            "Plantas de Interior",
+            "Plantas de Exterior / Jardín",
+            "Árboles y Arbustos",
+            "Frutales",
+            "Suculentas y Cactáceas",
+            "Plantas Aromáticas y Medicinales",
+            "Flores de Estación",
+        ],
+        "Macetas y Contenedores": [
+            "Macetas de Plástico",
+            "Macetas de Barro / Cerámica",
+            "Macetas de Cemento / Fibrocemento",
+            "Maceteros Colgantes y Jardineras",
+            "Portamacetas y Stands",
+        ],
+        "Sustratos y Tierras": [
+            "Tierra Fértil / Compost",
+            "Sustrato para Suculentas y Cactáceas",
+            "Sustrato para Plantas de Interior",
+            "Humus de Lombriz",
+            "Perlita y Vermiculita",
+        ],
+        "Fertilizantes y Sanidad Vegetal": [
+            "Fertilizantes Líquidos",
+            "Fertilizantes Sólidos / Liberación Lenta",
+            "Insecticidas y Plaguicidas",
+            "Fungicidas",
+        ],
+        "Herramientas y Accesorios": [
+            "Herramientas de Mano",
+            "Elementos de Riego",
+            "Tijeras de Podar",
+            "Elementos de Protección",
+        ],
+        "Decoración y Paisajismo": [
+            "Piedras Decorativas y Cascotes",
+            "Cortezas de Pino",
+            "Estacas y Tutores",
+            "Mallas y Redes",
+        ],
+    }
+
+    for padre, subs in categorias_iniciales.items():
+      # Insertar categoría principal
+      cursor.execute(
+          "INSERT INTO categorias (nombre, categoria_padre_id) VALUES (?, NULL)",
+          (padre,),
+      )
+      padre_id = cursor.lastrowid
+      # Insertar subcategorías
+      for sub in subs:
+        cursor.execute(
+            "INSERT INTO categorias (nombre, categoria_padre_id) VALUES (?,"
+            " ?)",
+            (sub, padre_id),
+        )
+
   conn.commit()
   conn.close()
 
@@ -73,7 +135,6 @@ if not st.session_state.autenticado:
       " Ingresá la contraseña para continuar."
   )
 
-  # Input limpio sin ningún placeholder o pista de ejemplo
   password_ingresada = st.text_input("Contraseña de acceso:", type="password")
 
   if st.button("🔑 Ingresar", type="primary"):
@@ -309,7 +370,7 @@ with tab_nuevo:
   df_cat = pd.read_sql("SELECT id, nombre FROM categorias", conn)
 
   if df_cat.empty:
-    st.warning("⚠️ Primero creá una categoría en '🗂️ Gestión de Categorías'.")
+    st.warning("⚠️ No hay categorías disponibles.")
   else:
     opciones_cat = {row["nombre"]: row["id"] for _, row in df_cat.iterrows()}
 
@@ -517,7 +578,7 @@ with tab_cat:
       if "confirmar_del_cat" not in st.session_state:
         st.session_state.confirmar_del_cat = False
 
-      if not st.session_state.confirmar_del_cat:
+      if not st.confirmar_del_cat:  # type: ignore
         if st.button("❌ Eliminar Categoría", type="secondary"):
           st.session_state.confirmar_del_cat = True
           st.rerun()
