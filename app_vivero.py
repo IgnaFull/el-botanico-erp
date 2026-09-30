@@ -73,7 +73,9 @@ if not st.session_state.autenticado:
       " Ingresá la contraseña para continuar."
   )
 
-  password_ingresada = st.text_input("Contraseña de acceso:", type="password")
+  password_ingresada = st.text_input(
+      "Contraseña de acceso:", type="password", placeholder="Ej: botanico2026"
+  )
 
   if st.button("🔑 Ingresar", type="primary"):
     if password_ingresada == CLAVE_ACCESO:
@@ -115,7 +117,9 @@ with tab_dash:
   df_ventas = pd.read_sql("SELECT * FROM ventas", conn)
   df_productos = pd.read_sql(
       """
-        SELECT p.sku, p.nombre, p.precio_venta, p.stock_actual, c.nombre as categoria 
+        SELECT p.sku as 'Código de Producto', p.nombre as 'Producto', 
+               p.precio_venta as 'Precio ($)', p.stock_actual as 'Stock Actual', 
+               c.nombre as 'Categoría' 
         FROM productos p LEFT JOIN categorias c ON p.categoria_id = c.id
     """,
       conn,
@@ -125,16 +129,16 @@ with tab_dash:
   cant_ventas = len(df_ventas)
 
   if not df_productos.empty:
-    df_productos["precio_venta"] = pd.to_numeric(
-        df_productos["precio_venta"], errors="coerce"
+    df_productos["Precio ($)"] = pd.to_numeric(
+        df_productos["Precio ($)"], errors="coerce"
     ).fillna(0)
-    df_productos["stock_actual"] = pd.to_numeric(
-        df_productos["stock_actual"], errors="coerce"
+    df_productos["Stock Actual"] = pd.to_numeric(
+        df_productos["Stock Actual"], errors="coerce"
     ).fillna(0)
     valor_stock = (
-        df_productos["precio_venta"] * df_productos["stock_actual"]
+        df_productos["Precio ($)"] * df_productos["Stock Actual"]
     ).sum()
-    stock_bajo = len(df_productos[df_productos["stock_actual"] < 5])
+    stock_bajo = len(df_productos[df_productos["Stock Actual"] < 5])
   else:
     valor_stock = 0.0
     stock_bajo = 0
@@ -167,7 +171,7 @@ with tab_pos:
     )
   else:
     opciones_prod = {
-        f"{row['nombre']} (Stock: {row['stock_actual']} - ${row['precio_venta']})": row[
+        f"[{row['sku']}] {row['nombre']} (Stock: {row['stock_actual']} - ${row['precio_venta']})": row[
             "id"
         ]
         for _, row in df_productos.iterrows()
@@ -253,7 +257,6 @@ with tab_historial:
   if not df_historial.empty:
     st.dataframe(df_historial, use_container_width=True)
 
-    # Botón para descargar en Excel (CSV compatible con Excel)
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
       df_historial.to_excel(writer, index=False, sheet_name="Historial de Ventas")
@@ -275,7 +278,7 @@ with tab_stock:
   st.subheader("Auditoría de Inventario")
   df_stock = pd.read_sql(
       """
-        SELECT p.sku as SKU, p.nombre as Producto, c.nombre as Categoría, 
+        SELECT p.sku as 'Código de Producto', p.nombre as 'Producto', c.nombre as 'Categoría', 
                p.precio_venta as 'Precio ($)', p.stock_actual as 'Stock Disponible'
         FROM productos p LEFT JOIN categorias c ON p.categoria_id = c.id
     """,
@@ -284,7 +287,6 @@ with tab_stock:
   if not df_stock.empty:
     st.dataframe(df_stock, use_container_width=True)
 
-    # Botón opcional también para descargar el stock actual en Excel
     output_stock = io.BytesIO()
     with pd.ExcelWriter(output_stock, engine="xlsxwriter") as writer:
       df_stock.to_excel(writer, index=False, sheet_name="Inventario")
@@ -303,7 +305,7 @@ with tab_stock:
 
 # ==================== 5. NUEVO PRODUCTO ====================
 with tab_nuevo:
-  st.subheader("Agregar Planta o Insumo")
+  st.subheader("➕ Agregar Planta o Insumo")
 
   df_cat = pd.read_sql("SELECT id, nombre FROM categorias", conn)
 
@@ -315,30 +317,64 @@ with tab_nuevo:
     cat_elegida = st.selectbox("Categoría:", list(opciones_cat.keys()))
     cat_id = opciones_cat[cat_elegida]
 
-    sku = st.text_input("Código SKU:", placeholder="Ej: PLT-INT-01")
-    nombre_prod = st.text_input(
-        "Nombre de la Planta o Producto:", placeholder="Ej: Monstera Deliciosa"
+    sku = st.text_input(
+        "Código de Producto:",
+        placeholder="Ej: MONS-01, SUC-10, MAC-PLAS-12",
+        key="input_sku",
     )
-    precio = st.number_input("Precio de Venta ($):", min_value=0.0, step=100.0)
-    stock = st.number_input("Stock Inicial:", min_value=0, step=1)
+    nombre_prod = st.text_input(
+        "Nombre de la Planta o Producto:",
+        placeholder="Ej: Monstera Deliciosa N15",
+        key="input_nombre_prod",
+    )
+    precio = st.number_input(
+        "Precio de Venta ($):", min_value=0.0, step=100.0, key="input_precio"
+    )
+    stock = st.number_input(
+        "Stock Inicial:", min_value=0, step=1, key="input_stock"
+    )
 
-    if st.button("💾 Guardar Producto", type="primary"):
-      if not sku or not nombre_prod:
-        st.error("Por favor completa el código SKU y el nombre.")
-      else:
-        try:
-          cursor = conn.cursor()
-          cursor.execute(
-              """INSERT INTO productos (categoria_id, sku, nombre, precio_venta,
-              stock_actual) 
-                     VALUES (?, ?, ?, ?, ?)""",
-              (cat_id, sku, nombre_prod, precio, stock),
-          )
-          conn.commit()
-          st.success("¡Producto guardado correctamente!")
+    if "confirmar_nuevo_prod" not in st.session_state:
+      st.session_state.confirmar_nuevo_prod = False
+
+    if not st.session_state.confirmar_nuevo_prod:
+      if st.button("💾 Guardar Producto", type="primary"):
+        if not sku or not nombre_prod:
+          st.error("Por favor completa el código de producto y el nombre.")
+        else:
+          st.session_state.confirmar_nuevo_prod = True
           st.rerun()
-        except sqlite3.IntegrityError:
-          st.error(f"El código SKU '{sku}' ya existe. Ingresá otro.")
+    else:
+      st.warning(
+          f"⚠️ ¿Confirmás que deseás registrar el producto **{nombre_prod}** con"
+          f" código **{sku}** por un precio de **${precio:,.2f}** y stock"
+          f" inicial de **{stock}**?"
+      )
+      col_c1, col_c2 = st.columns(2)
+      with col_c1:
+        if st.button(
+            "✅ Sí, guardar producto", type="primary", use_container_width=True
+        ):
+          try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """INSERT INTO productos (categoria_id, sku, nombre, precio_venta, stock_actual) 
+                       VALUES (?, ?, ?, ?, ?)""",
+                (cat_id, sku, nombre_prod, precio, stock),
+            )
+            conn.commit()
+            st.session_state.confirmar_nuevo_prod = False
+            st.success("¡Producto guardado correctamente!")
+            st.rerun()
+          except sqlite3.IntegrityError:
+            st.session_state.confirmar_nuevo_prod = False
+            st.error(
+                f"El código de producto '{sku}' ya existe. Ingresá otro."
+            )
+      with col_c2:
+        if st.button("❌ Cancelar", use_container_width=True):
+          st.session_state.confirmar_nuevo_prod = False
+          st.rerun()
 
 # ==================== 6. ELIMINAR PRODUCTO ====================
 with tab_eliminar:
@@ -361,23 +397,39 @@ with tab_eliminar:
     )
     id_a_borrar = opciones_borrar[prod_a_borrar_str]
 
-    st.warning(
-        "⚠️ Atención: Esta acción borrará el producto permanentemente del"
-        " sistema."
-    )
+    if "confirmar_del_prod" not in st.session_state:
+      st.session_state.confirmar_del_prod = False
 
-    if st.button("❌ Eliminar Producto Definitivamente", type="secondary"):
-      cursor = conn.cursor()
-      cursor.execute("DELETE FROM productos WHERE id = ?", (id_a_borrar,))
-      conn.commit()
-      st.success(
-          f"¡El producto '{prod_a_borrar_str}' ha sido eliminado con éxito!"
+    if not st.session_state.confirmar_del_prod:
+      if st.button("❌ Eliminar Producto", type="secondary"):
+        st.session_state.confirmar_del_prod = True
+        st.rerun()
+    else:
+      st.warning(
+          f"⚠️ **ATENCIÓN:** ¿Estás seguro de eliminar permanentemente el"
+          f" producto **{prod_a_borrar_str}**?"
       )
-      st.rerun()
+      col_d1, col_d2 = st.columns(2)
+      with col_d1:
+        if st.button(
+            "🔴 Sí, eliminar definitivamente",
+            type="primary",
+            use_container_width=True,
+        ):
+          cursor = conn.cursor()
+          cursor.execute("DELETE FROM productos WHERE id = ?", (id_a_borrar,))
+          conn.commit()
+          st.session_state.confirmar_del_prod = False
+          st.success("¡El producto ha sido eliminado con éxito!")
+          st.rerun()
+      with col_d2:
+        if st.button("❌ Cancelar", use_container_width=True):
+          st.session_state.confirmar_del_prod = False
+          st.rerun()
 
 # ==================== 7. GESTIÓN DE CATEGORÍAS ====================
 with tab_cat:
-  st.subheader("Administrar Categorías y Subcategorías")
+  st.subheader("🗂️ Administrar Categorías y Subcategorías")
 
   col1, col2 = st.columns(2)
 
@@ -385,7 +437,8 @@ with tab_cat:
     st.markdown("### Crear Nueva Categoría")
     nueva_cat = st.text_input(
         "Nombre de la categoría o subcategoría:",
-        placeholder="Ej: Plantas de Interior, Sustratos, Macetas",
+        placeholder="Ej: Plantas de Exterior, Sustratos, Macetas",
+        key="input_nueva_cat",
     )
 
     df_padres = pd.read_sql(
@@ -401,29 +454,50 @@ with tab_cat:
     )
     padre_id = opciones_padres[padre_elegido]
 
-    if st.button("➕ Crear Categoría"):
-      if not nueva_cat.strip():
-        st.warning("Escribí un nombre para la categoría.")
-      else:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT COUNT(*) FROM categorias WHERE LOWER(nombre) = LOWER(?)",
-            (nueva_cat.strip(),),
-        )
-        existe = cursor.fetchone()[0]
+    if "confirmar_nueva_cat" not in st.session_state:
+      st.session_state.confirmar_nueva_cat = False
 
-        if existe > 0:
-          st.error(
-              f"⚠ La categoría '{nueva_cat.strip()}' ya existe en el sistema."
-          )
+    if not st.session_state.confirmar_nueva_cat:
+      if st.button("➕ Crear Categoría"):
+        if not nueva_cat.strip():
+          st.warning("Escribí un nombre para la categoría.")
         else:
+          st.session_state.confirmar_nueva_cat = True
+          st.rerun()
+    else:
+      st.warning(
+          f"⚠️ ¿Confirmás que deseás crear la categoría **{nueva_cat.strip()}**?"
+      )
+      col_e1, col_e2 = st.columns(2)
+      with col_e1:
+        if st.button(
+            "✅ Sí, crear categoría", type="primary", use_container_width=True
+        ):
+          cursor = conn.cursor()
           cursor.execute(
-              "INSERT INTO categorias (nombre, categoria_padre_id) VALUES (?,"
-              " ?)",
-              (nueva_cat.strip(), padre_id),
+              "SELECT COUNT(*) FROM categorias WHERE LOWER(nombre) = LOWER(?)",
+              (nueva_cat.strip(),),
           )
-          conn.commit()
-          st.success(f"¡Categoría '{nueva_cat.strip()}' creada con éxito!")
+          existe = cursor.fetchone()[0]
+
+          if existe > 0:
+            st.session_state.confirmar_nueva_cat = False
+            st.error(
+                f"⚠ La categoría '{nueva_cat.strip()}' ya existe en el sistema."
+            )
+          else:
+            cursor.execute(
+                "INSERT INTO categorias (nombre, categoria_padre_id) VALUES"
+                " (?, ?)",
+                (nueva_cat.strip(), padre_id),
+            )
+            conn.commit()
+            st.session_state.confirmar_nueva_cat = False
+            st.success(f"¡Categoría '{nueva_cat.strip()}' creada con éxito!")
+            st.rerun()
+      with col_e2:
+        if st.button("❌ Cancelar", use_container_width=True):
+          st.session_state.confirmar_nueva_cat = False
           st.rerun()
 
     st.markdown("---")
@@ -441,12 +515,35 @@ with tab_cat:
       )
       id_cat_borrar = opciones_cat_del[cat_a_borrar_str]
 
-      if st.button("❌ Eliminar Categoría", type="secondary"):
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM categorias WHERE id = ?", (id_cat_borrar,))
-        conn.commit()
-        st.success("¡Categoría eliminada con éxito!")
-        st.rerun()
+      if "confirmar_del_cat" not in st.session_state:
+        st.session_state.confirmar_del_cat = False
+
+      if not st.session_state.confirmar_del_cat:
+        if st.button("❌ Eliminar Categoría", type="secondary"):
+          st.session_state.confirmar_del_cat = True
+          st.rerun()
+      else:
+        st.warning(
+            f"⚠️ **ATENCIÓN:** ¿Estás seguro de eliminar la categoría"
+            f" **{cat_a_borrar_str}**?"
+        )
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+          if st.button(
+              "🔴 Sí, eliminar categoría",
+              type="primary",
+              use_container_width=True,
+          ):
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM categorias WHERE id = ?", (id_cat_borrar,))
+            conn.commit()
+            st.session_state.confirmar_del_cat = False
+            st.success("¡Categoría eliminada con éxito!")
+            st.rerun()
+        with col_f2:
+          if st.button("❌ Cancelar", use_container_width=True):
+            st.session_state.confirmar_del_cat = False
+            st.rerun()
 
     st.markdown("---")
     st.markdown("### ⚙️ Zona de Mantenimiento")
