@@ -52,7 +52,6 @@ def inicializar_bd():
         )
     """)
 
-  # Categorías principales vacías por defecto (puedes crear tus propias categorías desde la app)
   conn.commit()
   conn.close()
 
@@ -64,14 +63,17 @@ st.title("🌿 El Botánico - Sistema de Gestión")
 st.markdown("---")
 
 # --- 3. PESTAÑAS HORIZONTALES DIRECTAS ---
-tab_dash, tab_pos, tab_historial, tab_stock, tab_nuevo, tab_cat = st.tabs([
-    "📊 Dashboard",
-    "🛒 Registrar Venta (POS)",
-    "📜 Historial",
-    "📦 Control de Stock",
-    "➕ Nuevo Producto",
-    "🗂️ Gestión de Categorías",
-])
+tab_dash, tab_pos, tab_historial, tab_stock, tab_nuevo, tab_eliminar, tab_cat = (
+    st.tabs([
+        "📊 Dashboard",
+        "🛒 Registrar Venta (POS)",
+        "📜 Historial",
+        "📦 Control de Stock",
+        "➕ Nuevo Producto",
+        "🗑️ Eliminar Producto",
+        "🗂️ Gestión de Categorías",
+    ])
+)
 
 conn = sqlite3.connect(DB_NAME)
 
@@ -117,10 +119,7 @@ with tab_dash:
   if not df_productos.empty:
     st.dataframe(df_productos, use_container_width=True)
   else:
-    st.info(
-        "No hay productos cargados todavía. Usá la solapa '➕ Nuevo Producto' o"
-        " '🗂️ Gestión de Categorías' para empezar."
-    )
+    st.info("No hay productos cargados todavía.")
 
 # ==================== 2. REGISTRAR VENTA (POS) ====================
 with tab_pos:
@@ -131,9 +130,7 @@ with tab_pos:
   )
 
   if df_productos.empty:
-    st.warning(
-        "No hay productos disponibles para la venta. Cargá productos primero."
-    )
+    st.warning("No hay productos disponibles para la venta.")
   else:
     opciones_prod = {
         f"{row['nombre']} (Stock: {row['stock_actual']} - ${row['precio_venta']})": row[
@@ -238,10 +235,7 @@ with tab_nuevo:
   df_cat = pd.read_sql("SELECT id, nombre FROM categorias", conn)
 
   if df_cat.empty:
-    st.warning(
-        "⚠️ Primero debés crear al menos una categoría en la solapa '🗂️ Gestión"
-        " de Categorías'."
-    )
+    st.warning("⚠️ Primero creá una categoría en '🗂️ Gestión de Categorías'.")
   else:
     opciones_cat = {row["nombre"]: row["id"] for _, row in df_cat.iterrows()}
 
@@ -271,7 +265,42 @@ with tab_nuevo:
         except sqlite3.IntegrityError:
           st.error(f"El código SKU '{sku}' ya existe. Ingresá otro.")
 
-# ==================== 6. GESTIÓN DE CATEGORÍAS ====================
+# ==================== 6. ELIMINAR PRODUCTO ====================
+with tab_eliminar:
+  st.subheader("🗑️ Eliminar Producto del Inventario")
+
+  df_productos_del = pd.read_sql(
+      "SELECT id, sku, nombre FROM productos", conn
+  )
+
+  if df_productos_del.empty:
+    st.info("No hay productos cargados para eliminar.")
+  else:
+    opciones_borrar = {
+        f"[{row['sku']}] {row['nombre']}": row["id"]
+        for _, row in df_productos_del.iterrows()
+    }
+
+    prod_a_borrar_str = st.selectbox(
+        "Seleccioná el producto a eliminar:", list(opciones_borrar.keys())
+    )
+    id_a_borrar = opciones_borrar[prod_a_borrar_str]
+
+    st.warning(
+        "⚠️ Atención: Esta acción borrará el producto permanentemente del"
+        " sistema."
+    )
+
+    if st.button("❌ Eliminar Producto Definitivamente", type="secondary"):
+      cursor = conn.cursor()
+      cursor.execute("DELETE FROM productos WHERE id = ?", (id_a_borrar,))
+      conn.commit()
+      st.success(
+          f"¡El producto '{prod_a_borrar_str}' ha sido eliminado con éxito!"
+      )
+      st.rerun()
+
+# ==================== 7. GESTIÓN DE CATEGORÍAS ====================
 with tab_cat:
   st.subheader("Administrar Categorías y Subcategorías")
 
@@ -279,7 +308,7 @@ with tab_cat:
 
   with col1:
     st.markdown("### Crear Nueva Categoría")
-    nueva_cat = st.text_input("Nombre de la categoría principal o subcategoría:")
+    nueva_cat = st.text_input("Nombre de la categoría o subcategoría:")
     df_padres = pd.read_sql(
         "SELECT id, nombre FROM categorias WHERE categoria_padre_id IS NULL",
         conn,
