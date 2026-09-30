@@ -247,7 +247,7 @@ with tab_nuevo:
   df_cat = pd.read_sql("SELECT id, nombre FROM categorias", conn)
 
   if df_cat.empty:
-    st.warning("⚠️ Primero creá una categoría en '🗂️ Gestión de Categorías'.")
+    st.warning("⚠️ Primero creá una categoría en '🗂️️ Gestión de Categorías'.")
   else:
     opciones_cat = {row["nombre"]: row["id"] for _, row in df_cat.iterrows()}
 
@@ -344,7 +344,6 @@ with tab_cat:
       if not nueva_cat.strip():
         st.warning("Escribí un nombre para la categoría.")
       else:
-        # Verificar si ya existe una categoría con el mismo nombre (sin distinguir mayúsculas)
         cursor = conn.cursor()
         cursor.execute(
             "SELECT COUNT(*) FROM categorias WHERE LOWER(nombre) = LOWER(?)",
@@ -354,7 +353,7 @@ with tab_cat:
 
         if existe > 0:
           st.error(
-              f"⚠️️ La categoría '{nueva_cat.strip()}' ya existe en el sistema."
+              f"⚠ La categoría '{nueva_cat.strip()}' ya existe en el sistema."
           )
         else:
           cursor.execute(
@@ -383,11 +382,47 @@ with tab_cat:
 
       if st.button("❌ Eliminar Categoría", type="secondary"):
         cursor = conn.cursor()
-        # Borrar categoría
         cursor.execute("DELETE FROM categorias WHERE id = ?", (id_cat_borrar,))
         conn.commit()
         st.success("¡Categoría eliminada con éxito!")
         st.rerun()
+
+    st.markdown("---")
+    st.markdown("### ⚙️ Zona de Mantenimiento")
+
+    # Inicializar la variable de estado si no existe
+    if "confirmar_reinicio" not in st.session_state:
+      st.session_state.confirmar_reinicio = False
+
+    if not st.session_state.confirmar_reinicio:
+      if st.button("🔄 Reinicio de Fábrica"):
+        st.session_state.confirmar_reinicio = True
+        st.rerun()
+    else:
+      st.error(
+          "⚠️ **¡ADVERTENCIA DE REINICIO DE FÁBRICA!** ⚠️\n\nEstás a punto de"
+          " borrar **absolutamente todo**: productos, historial de ventas y"
+          " categorías. Esta acción no se puede deshacer."
+      )
+
+      col_a, col_b = st.columns(2)
+      with col_a:
+        if st.button(
+            "🔴 SÍ, BORRAR TODO", type="primary", use_container_width=True
+        ):
+          cursor = conn.cursor()
+          cursor.execute("DELETE FROM detalle_ventas")
+          cursor.execute("DELETE FROM ventas")
+          cursor.execute("DELETE FROM productos")
+          cursor.execute("DELETE FROM categorias")
+          conn.commit()
+          st.session_state.confirmar_reinicio = False
+          st.success("¡Sistema reiniciado de fábrica con éxito!")
+          st.rerun()
+      with col_b:
+        if st.button("❌ Cancelar", use_container_width=True):
+          st.session_state.confirmar_reinicio = False
+          st.rerun()
 
   with col2:
     st.markdown("### Categorías Existentes")
