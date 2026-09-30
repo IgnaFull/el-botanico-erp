@@ -148,8 +148,18 @@ with tab_pos:
     prod_id = opciones_prod[prod_seleccionado_str]
 
     prod_info = df_productos[df_productos["id"] == prod_id].iloc[0]
-    stock_disponible = int(pd.to_numeric(prod_info["stock_actual"], errors="coerce"))
-    precio_unitario = float(pd.to_numeric(prod_info["precio_venta"], errors="coerce"))
+
+    # Conversión segura con .fillna(0) para evitar errores con nulos
+    stock_disponible = int(
+        pd.to_numeric(
+            pd.Series([prod_info["stock_actual"]]), errors="coerce"
+        ).fillna(0)[0]
+    )
+    precio_unitario = float(
+        pd.to_numeric(
+            pd.Series([prod_info["precio_venta"]]), errors="coerce"
+        ).fillna(0)[0]
+    )
 
     cantidad = st.number_input(
         "Cantidad a llevar:",
