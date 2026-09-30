@@ -52,38 +52,8 @@ def inicializar_bd():
         )
     """)
 
-  cursor.execute("SELECT COUNT(*) FROM categorias")
-  if cursor.fetchone()[0] == 0:
-    cursor.executemany(
-        "INSERT INTO categorias (nombre, categoria_padre_id) VALUES (?, ?)",
-        [
-            ("Plantas", None),
-            ("Macetas e Insumos", None),
-            ("Interior", 1),
-            ("Exterior", 1),
-            ("Suculentas", 1),
-            ("Plástico", 2),
-            ("Sustratos", 2),
-        ],
-    )
-    conn.commit()
-
-  cursor.execute("SELECT COUNT(*) FROM productos")
-  if cursor.fetchone()[0] == 0:
-    productos_iniciales = [
-        (3, "PLT-INT-001", "Monstera Deliciosa (N15)", 8500.0, 10),
-        (3, "PLT-INT-002", "Ficus Lyrata (N20)", 13000.0, 6),
-        (5, "SUC-001", "Echeveria (Maceta 10)", 2500.0, 25),
-        (7, "INS-SUS-001", "Sustrato Premium 5dm3", 4200.0, 15),
-    ]
-    cursor.executemany(
-        """INSERT INTO productos (categoria_id, sku, nombre, precio_venta,
-        stock_actual) 
-               VALUES (?, ?, ?, ?, ?)""",
-        productos_iniciales,
-    )
-    conn.commit()
-
+  # Categorías principales vacías por defecto (puedes crear tus propias categorías desde la app)
+  conn.commit()
   conn.close()
 
 
@@ -147,7 +117,10 @@ with tab_dash:
   if not df_productos.empty:
     st.dataframe(df_productos, use_container_width=True)
   else:
-    st.info("No hay productos cargados todavía.")
+    st.info(
+        "No hay productos cargados todavía. Usá la solapa '➕ Nuevo Producto' o"
+        " '🗂️ Gestión de Categorías' para empezar."
+    )
 
 # ==================== 2. REGISTRAR VENTA (POS) ====================
 with tab_pos:
@@ -158,7 +131,9 @@ with tab_pos:
   )
 
   if df_productos.empty:
-    st.warning("No hay productos disponibles para la venta.")
+    st.warning(
+        "No hay productos disponibles para la venta. Cargá productos primero."
+    )
   else:
     opciones_prod = {
         f"{row['nombre']} (Stock: {row['stock_actual']} - ${row['precio_venta']})": row[
@@ -251,40 +226,50 @@ with tab_stock:
     """,
       conn,
   )
-  st.dataframe(df_stock, use_container_width=True)
+  if not df_stock.empty:
+    st.dataframe(df_stock, use_container_width=True)
+  else:
+    st.info("El inventario está vacío.")
 
 # ==================== 5. NUEVO PRODUCTO ====================
 with tab_nuevo:
   st.subheader("Agregar Planta o Insumo")
 
   df_cat = pd.read_sql("SELECT id, nombre FROM categorias", conn)
-  opciones_cat = {row["nombre"]: row["id"] for _, row in df_cat.iterrows()}
 
-  cat_elegida = st.selectbox("Categoría:", list(opciones_cat.keys()))
-  cat_id = opciones_cat[cat_elegida]
+  if df_cat.empty:
+    st.warning(
+        "⚠️ Primero debés crear al menos una categoría en la solapa '🗂️ Gestión"
+        " de Categorías'."
+    )
+  else:
+    opciones_cat = {row["nombre"]: row["id"] for _, row in df_cat.iterrows()}
 
-  sku = st.text_input("Código SKU (Ej: PLT-INT-05):")
-  nombre_prod = st.text_input("Nombre de la Planta o Producto:")
-  precio = st.number_input("Precio de Venta ($):", min_value=0.0, step=100.0)
-  stock = st.number_input("Stock Inicial:", min_value=0, step=1)
+    cat_elegida = st.selectbox("Categoría:", list(opciones_cat.keys()))
+    cat_id = opciones_cat[cat_elegida]
 
-  if st.button("💾 Guardar Producto", type="primary"):
-    if not sku or not nombre_prod:
-      st.error("Por forma completa el código SKU y el nombre.")
-    else:
-      try:
-        cursor = conn.cursor()
-        cursor.execute(
-            """INSERT INTO productos (categoria_id, sku, nombre, precio_venta,
-            stock_actual) 
-                   VALUES (?, ?, ?, ?, ?)""",
-            (cat_id, sku, nombre_prod, precio, stock),
-        )
-        conn.commit()
-        st.success("¡Producto guardado correctamente!")
-        st.rerun()
-      except sqlite3.IntegrityError:
-        st.error(f"El código SKU '{sku}' ya existe. Ingresá otro.")
+    sku = st.text_input("Código SKU (Ej: PLT-INT-01):")
+    nombre_prod = st.text_input("Nombre de la Planta o Producto:")
+    precio = st.number_input("Precio de Venta ($):", min_value=0.0, step=100.0)
+    stock = st.number_input("Stock Inicial:", min_value=0, step=1)
+
+    if st.button("💾 Guardar Producto", type="primary"):
+      if not sku or not nombre_prod:
+        st.error("Por favor completa el código SKU y el nombre.")
+      else:
+        try:
+          cursor = conn.cursor()
+          cursor.execute(
+              """INSERT INTO productos (categoria_id, sku, nombre, precio_venta,
+              stock_actual) 
+                     VALUES (?, ?, ?, ?, ?)""",
+              (cat_id, sku, nombre_prod, precio, stock),
+          )
+          conn.commit()
+          st.success("¡Producto guardado correctamente!")
+          st.rerun()
+        except sqlite3.IntegrityError:
+          st.error(f"El código SKU '{sku}' ya existe. Ingresá otro.")
 
 # ==================== 6. GESTIÓN DE CATEGORÍAS ====================
 with tab_cat:
@@ -294,7 +279,7 @@ with tab_cat:
 
   with col1:
     st.markdown("### Crear Nueva Categoría")
-    nueva_cat = st.text_input("Nombre de la categoría:")
+    nueva_cat = st.text_input("Nombre de la categoría principal o subcategoría:")
     df_padres = pd.read_sql(
         "SELECT id, nombre FROM categorias WHERE categoria_padre_id IS NULL",
         conn,
@@ -324,6 +309,9 @@ with tab_cat:
   with col2:
     st.markdown("### Categorías Existentes")
     df_cat_show = pd.read_sql("SELECT id, nombre FROM categorias", conn)
-    st.dataframe(df_cat_show, use_container_width=True)
+    if not df_cat_show.empty:
+      st.dataframe(df_cat_show, use_container_width=True)
+    else:
+      st.info("No hay categorías creadas todavía.")
 
 conn.close()
