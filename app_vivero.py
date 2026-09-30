@@ -1,3 +1,4 @@
+import io
 import sqlite3
 import pandas as pd
 import streamlit as st
@@ -59,9 +60,7 @@ def inicializar_bd():
 inicializar_bd()
 
 # --- 2. SISTEMA DE LOGIN / CONTRASEÑA ---
-CLAVE_ACCESO = (
-    "botanico2026"  # Podés cambiar esta contraseña cuando quieras
-)
+CLAVE_ACCESO = "botanico2026"
 
 if "autenticado" not in st.session_state:
   st.session_state.autenticado = False
@@ -84,14 +83,12 @@ if not st.session_state.autenticado:
     else:
       st.error("❌ Contraseña incorrecta. Intentá nuevamente.")
 
-  # Detiene la ejecución aquí si no está logueado
   st.stop()
 
 # --- 3. TÍTULO PRINCIPAL (Una vez logueado) ---
 st.title("🌿 El Botánico - Sistema de Gestión")
 st.markdown("---")
 
-# Botón para cerrar sesión en la barra lateral o arriba
 if st.sidebar.button("🔒 Cerrar Sesión"):
   st.session_state.autenticado = False
   st.rerun()
@@ -255,6 +252,21 @@ with tab_historial:
 
   if not df_historial.empty:
     st.dataframe(df_historial, use_container_width=True)
+
+    # Botón para descargar en Excel (CSV compatible con Excel)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+      df_historial.to_excel(writer, index=False, sheet_name="Historial de Ventas")
+    excel_data = output.getvalue()
+
+    st.download_button(
+        label="📥 Descargar Historial en Excel",
+        data=excel_data,
+        file_name="historial_ventas_el_botanico.xlsx",
+        mime=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+    )
   else:
     st.info("Aún no se han registrado ventas.")
 
@@ -271,6 +283,21 @@ with tab_stock:
   )
   if not df_stock.empty:
     st.dataframe(df_stock, use_container_width=True)
+
+    # Botón opcional también para descargar el stock actual en Excel
+    output_stock = io.BytesIO()
+    with pd.ExcelWriter(output_stock, engine="xlsxwriter") as writer:
+      df_stock.to_excel(writer, index=False, sheet_name="Inventario")
+    excel_stock_data = output_stock.getvalue()
+
+    st.download_button(
+        label="📥 Descargar Inventario en Excel",
+        data=excel_stock_data,
+        file_name="inventario_el_botanico.xlsx",
+        mime=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+    )
   else:
     st.info("El inventario está vacío.")
 
@@ -435,7 +462,7 @@ with tab_cat:
       st.error(
           "⚠️ **¡ADVERTENCIA DE REINICIO DE FÁBRICA!** ⚠️\n\nEstás a punto de"
           " borrar **absolutamente todo**: productos, historial de ventas y"
-          " categories. Esta acción no se puede deshacer."
+          " categorías. Esta acción no se puede deshacer."
       )
 
       col_a, col_b = st.columns(2)
