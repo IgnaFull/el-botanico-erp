@@ -11,28 +11,6 @@ st.set_page_config(
 DB_NAME = "vivero_web.db"
 
 
-def safe_float(val):
-  if pd.isna(val):
-    return 0.0
-  try:
-    return float(val)
-  except:
-    s = str(val).split("/")[0].strip()
-    try:
-      return float(s)
-    except:
-      return 0.0
-
-
-def safe_int(val):
-  if pd.isna(val):
-    return 0
-  try:
-    return int(float(val))
-  except:
-    return 0
-
-
 def inicializar_bd():
   conn = sqlite3.connect(DB_NAME)
   cursor = conn.cursor()
@@ -75,110 +53,65 @@ def inicializar_bd():
         )
     """)
 
-  # --- CARGAR FAMILIAS Y PRODUCTOS DESDE EL EXCEL RESPETANDO LA JERARQUÍA ---
-  cursor.execute("SELECT COUNT(*) FROM productos")
+  # --- CARGAR CATEGORÍAS Y SUBCATEGORÍAS POR DEFECTO SI LA TABLA ESTÁ VACÍA ---
+  cursor.execute("SELECT COUNT(*) FROM categorias")
   if cursor.fetchone()[0] == 0:
-    try:
-      df_inv = pd.read_excel(
-          "El_Botanico_Gestion_Integral 17-09.xlsx", sheet_name="INVENTARIO"
+    categorias_iniciales = {
+        "Plantas": [
+            "Plantas de Interior",
+            "Plantas de Exterior / Jardín",
+            "Árboles y Arbustos",
+            "Frutales",
+            "Suculentas y Cactáceas",
+            "Plantas Aromáticas y Medicinales",
+            "Flores de Estación",
+        ],
+        "Macetas y Contenedores": [
+            "Macetas de Plástico",
+            "Macetas de Barro / Cerámica",
+            "Macetas de Cemento / Fibrocemento",
+            "Maceteros Colgantes y Jardineras",
+            "Portamacetas y Stands",
+        ],
+        "Sustratos y Tierras": [
+            "Tierra Fértil / Compost",
+            "Sustrato para Suculentas y Cactáceas",
+            "Sustrato para Plantas de Interior",
+            "Humus de Lombriz",
+            "Perlita y Vermiculita",
+        ],
+        "Fertilizantes y Sanidad Vegetal": [
+            "Fertilizantes Líquidos",
+            "Fertilizantes Sólidos / Liberación Lenta",
+            "Insecticidas y Plaguicidas",
+            "Fungicidas",
+        ],
+        "Herramientas y Accesorios": [
+            "Herramientas de Mano",
+            "Elementos de Riego",
+            "Tijeras de Podar",
+            "Elementos de Protección",
+        ],
+        "Decoración y Paisajismo": [
+            "Piedras Decorativas y Cascotes",
+            "Cortezas de Pino",
+            "Estacas y Tutores",
+            "Mallas y Redes",
+        ],
+    }
+
+    for padre, subs in categorias_iniciales.items():
+      cursor.execute(
+          "INSERT INTO categorias (nombre, categoria_padre_id) VALUES (?, NULL)",
+          (padre,),
       )
-      current_family_id = None
-
-      for idx, row in df_inv.iterrows():
-        especie = row.get("ESPECIE")
-        if pd.isna(especie):
-          continue
-
-        maceta = row.get("Maceta (LTS.)")
-        cantidad = row.get("Cantidad")
-
-        # Si no tiene maceta ni cantidad, es un título de familia (categoría principal)
-        if pd.isna(maceta) and pd.isna(cantidad):
-          nombre_familia = str(especie).strip()
-          cursor.execute(
-              "INSERT INTO categorias (nombre, categoria_padre_id) VALUES (?, NULL)",
-              (nombre_familia,),
-          )
-          current_family_id = cursor.lastrowid
-        else:
-          if current_family_id is None:
-            cursor.execute(
-                "INSERT INTO categorias (nombre, categoria_padre_id) VALUES"
-                " ('GENERAL', NULL)"
-            )
-            current_family_id = cursor.lastrowid
-
-          nombre_prod = str(especie).strip()
-          precio = safe_float(row.get("Precio Venta"))
-          stock = safe_int(row.get("Existencias"))
-
-          sku_gen = (
-              "".join([c for c in nombre_prod if c.isalnum()][:6]).upper()
-              + f"_{idx}"
-          )
-          cursor.execute(
-              """INSERT OR IGNORE INTO productos (categoria_id, sku, nombre, precio_venta, stock_actual)
-                       VALUES (?, ?, ?, ?, ?)""",
-              (current_family_id, sku_gen, nombre_prod, precio, stock),
-          )
-    except Exception as e:
-      print("Error al procesar el inventario del Excel:", e)
-
-  # --- CARGAR VENTAS HISTÓRICAS ---
-  cursor.execute("SELECT COUNT(*) FROM ventas")
-  if cursor.fetchone()[0] == 0:
-    try:
-      df_v = pd.read_excel(
-          "El_Botanico_Gestion_Integral 17-09.xlsx", sheet_name="Ventas"
-      )
-      df_v = df_v.dropna(subset=["Especie"])
-
-      for idx, row in df_v.iterrows():
-        fecha_val = str(row.get("Fecha", "2026-08-09"))[:10]
-        total_val = safe_float(row.get("Total"))
-
+      padre_id = cursor.lastrowid
+      for sub in subs:
         cursor.execute(
-            "INSERT INTO ventas (fecha, total, medio_pago) VALUES (?, ?, ?)",
-            (fecha_val, total_val, "Efectivo"),
+            "INSERT INTO categorias (nombre, categoria_padre_id) VALUES (?,"
+            " ?)",
+            (sub, padre_id),
         )
-        venta_id = cursor.lastrowid
-
-        prod_nombre = str(row.get("Especie", "Planta General")).strip()
-        cant_val = safe_int(row.get("Cantidad"))
-        if cant_val <= 0:
-          cant_val = 1
-
-        cursor.execute(
-            "SELECT id FROM productos WHERE UPPER(nombre) = UPPER(?)",
-            (prod_nombre,),
-        )
-        res_p = cursor.fetchone()
-        if res_p:
-          prod_id = res_p[0]
-        else:
-          sku_v = (
-              "".join([c for c in prod_nombre if c.isalnum()][:6]).upper()
-              + f"_v_{idx}"
-          )
-          precio_unit = total_val / max(1, cant_val)
-          cursor.execute(
-              """INSERT OR IGNORE INTO productos (categoria_id, sku, nombre, precio_venta, stock_actual)
-                       VALUES (1, ?, ?, ?, 0)""",
-              (sku_v, prod_nombre, precio_unit),
-          )
-          cursor.execute(
-              "SELECT id FROM productos WHERE UPPER(nombre) = UPPER(?)",
-              (prod_nombre,),
-          )
-          prod_id = cursor.fetchone()[0]
-
-        cursor.execute(
-            """INSERT INTO detalle_ventas (venta_id, producto_id, cantidad, subtotal)
-                   VALUES (?, ?, ?, ?)""",
-            (venta_id, prod_id, cant_val, total_val),
-        )
-    except Exception as e:
-      print("Error al procesar las ventas del Excel:", e)
 
   conn.commit()
   conn.close()
@@ -503,7 +436,7 @@ with tab_nuevo:
 
 # ==================== 6. ELIMINAR PRODUCTO ====================
 with tab_eliminar:
-  st.subheader("🗑️ Eliminar Producto del Inventario")
+  st.subheader("🗑️️ Eliminar Producto del Inventario")
 
   df_productos_del = pd.read_sql(
       "SELECT id, sku, nombre FROM productos", conn
@@ -608,7 +541,7 @@ with tab_cat:
           if existe > 0:
             st.session_state.confirmar_nueva_cat = False
             st.error(
-                f"⚠️ La categoría '{nueva_cat.strip()}' ya existe en el sistema."
+                f"⚠ La categoría '{nueva_cat.strip()}' ya existe en el sistema."
             )
           else:
             cursor.execute(
