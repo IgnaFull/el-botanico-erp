@@ -53,65 +53,355 @@ def inicializar_bd():
         )
     """)
 
-  # --- CARGAR CATEGORÍAS Y SUBCATEGORÍAS POR DEFECTO SI LA TABLA ESTÁ VACÍA ---
+  # --- CARGAR CATEGORÍAS Y FAMILIAS DEL INVENTARIO POR DEFECTO SI LA TABLA ESTÁ VACÍA ---
   cursor.execute("SELECT COUNT(*) FROM categorias")
   if cursor.fetchone()[0] == 0:
-    categorias_iniciales = {
-        "Plantas": [
-            "Plantas de Interior",
-            "Plantas de Exterior / Jardín",
-            "Árboles y Arbustos",
-            "Frutales",
-            "Suculentas y Cactáceas",
-            "Plantas Aromáticas y Medicinales",
-            "Flores de Estación",
+    familias_inventario = {
+        "HERBACEAS PERENNES/CADUCAS": [
+            "AGAVE AMERICANO",
+            "AGAVE AMERICANO VARIEGADO",
+            "AGAVE ANGUSTIFOLIA MAGUEY",
+            "AGAVE ATENUATA",
+            "AGAVE DESMETTIANA",
+            "AGAVE DESMETTIANA VARIEGADO",
+            "AGLONEMA FREEDMAN",
+            "AGLONEMA PATTAYA",
+            "AGLONEMA PINK",
+            "ALEGRIA DEL HOGAR",
+            "ALISO DE MAR (LOBULARIA MARITIMA)",
+            "ALPINIA",
+            "ALTERNANTHERA BRASILIANA",
+            "ALTERNANTHERA FICOIDEA RED",
+            "ALTERNANTHERA FICOIDEA VERDE",
+            "ALOCACIA (OREJA DE ELEFANTE) CHICA",
+            "ALOCACIA (OREJA DE ELEFANTE) MEDIANA",
+            "ALOCACIA (OREJA DE ELEFANTE) GRANDE",
+            "ANTHURIUM",
+            "ANTHURIUM ROJO",
+            "ASTA DE CIERVO",
+            "ASCLEPIA",
+            "AZUCENA DE MEXICO",
+            "BEGONIA ALA DE ANGEL",
+            "BEGONIA DRAGON",
+            "BEGONIA HIRTELLA",
+            "BEGONIA BOOMER",
+            "BEGONIA RED",
+            "BEGONIA REY (PLATEADA)",
+            "BROMELIA (LAGRIMA DE REINA)",
+            "BROMELIA FOSFORITO",
+            "CALA BLANCA",
+            "CALATHEA MACOYANA",
+            "CALATHEA MACOYANA CHICA",
+            "CALATHEA MIL RAYAS",
+            "CALATHEA ZEBRINA",
+            "CALISTEMO",
+            "CLAVELINA",
+            "CRISANTEMO",
+            "COPETITO",
+            "CORTADERIA SELLOANA",
+            "COLOCACIA ESCULENTA",
+            "CUARESMERO 7L",
+            "CUARESMERO 5L",
+            "DIANELA",
+            "DIEFFENBACHIA MARIANA",
+            "DIETE",
+            "DIMORFOTECA (MARGARITA DEL CABO)",
+            "DRACENA RUBRA",
+            "DRACENA TRICOLOR",
+            "DRACENA LEMON",
+            "DRACENA WARNECKI",
+            "DRACENA KIWI",
+            "DRACENA BABY",
+            "ESCUDO PERSA",
+            "ESPATIFILO",
+            "ESPATIFILO SENSACIÒN",
+            "FITONIA",
+            "FLOR DE CARTON (DORSTENIA ELATA)",
+            "FLORALES",
+            "GAURA",
+            "GIRASOL",
+            "HELECHO MONO",
+            "HELECHO PIEDRA",
+            "HELECHO ESPARRAGO",
+            "HELICONIA CHICA",
+            "HELICONIA GRANDE",
+            "HIPOESTES",
+            "LAZO DE AMOR",
+            "LILIUM",
+            "LIRIO DEL AMAZONAS",
+            "LIRIO MATIZADO",
+            "LOBELIA",
+            "MARANTA",
+            "MARANTA ORACIÒN",
+            "MARGARITA",
+            "MELINI",
+            "MONEDA VARIEGADA",
+            "MONSTERA",
+            "MONSTERA GRANDE",
+            "PALMA DEL VIAJERO",
+            "PENACHO",
+            "PENNICETUM",
+            "PENSAMIENTO",
+            "PENTA",
+            "PETUNIA",
+            "PETUNIA AMARILLA COLGANTE",
+            "PHILODENDRO SANGUINEA",
+            "PHILODENDRO VERDE",
+            "PHILODENDRO WHITE PRINCESS",
+            "PIEL DE LEOPARDO (DRIMIOPSIS MACULATA)",
+            "PORTULACA",
+            "POTUS",
+            "POTUS LEMON",
+            "POTUS VARIEGADO BLANCO",
+            "POTUS VARIEGADO VERDE",
+            "PORTULACA (VERDOLAGA)",
+            "RETAMA",
+            "RUPELLI",
+            "SOL DE SUDAFRICA",
+            "STRELITZIA NICOLAI (FLOR BALNCA Y NEGRO)",
+            "STRELITZIA REGINAE (FLOR NARANJA)",
+            "STROMANTHE",
+            "STROMANTHE GRANDE",
+            "STROMANTHE CHICO",
+            "TRADESCANTIA",
+            "TREBOL ROJO",
+            "TUMBERGIA",
+            "VINCA",
+            "ZAMIOCULCA",
+            "ZAMIOCULCA BLACK",
+            "ZINNIA",
         ],
-        "Macetas y Contenedores": [
-            "Macetas de Plástico",
-            "Macetas de Barro / Cerámica",
-            "Macetas de Cemento / Fibrocemento",
-            "Maceteros Colgantes y Jardineras",
-            "Portamacetas y Stands",
+        "JAZMINES": [
+            "JAZMIN CHINO (JASMINUM POLYANTHUM)",
+            "JAZMIN DEL CIELO (PLUMBAGO AURICULATA)",
+            "JAZMIN DE LECHE (TRACHELOSPERMUM JASMINOIDES)",
+            "JAZMIN DEL CABO (GARDENIA JASMINOIDES)",
+            "JAZMIN DEL PAIS (JASMINUM GRANDIFLORUM)",
+            "JAZMIN AMARILLO (JASMINUM MENSYI)",
+            "JAZMIN DE MADAGASCAR (STEPHANOTIS FLORIBUNDA)",
+            "JAZMIN ESTRELLA",
+            "JAZMIN CAROLINA",
+            "JAZMIN MAGNO (PLUMERIA RUBRA )",
+            "JAZMIN BRASILERO (CUMBRETUM INDICUM)",
+            "JAZMIN PARAGUAYO (BRUNFELSIA AUSTRALIS)",
         ],
-        "Sustratos y Tierras": [
-            "Tierra Fértil / Compost",
-            "Sustrato para Suculentas y Cactáceas",
-            "Sustrato para Plantas de Interior",
-            "Humus de Lombriz",
-            "Perlita y Vermiculita",
+        "AROMATICAS": [
+            "AJENJO",
+            "ALBAHACA",
+            "ANIZ",
+            "BURRITO",
+            "CEDRON PARAGUAYO",
+            "CITRONELA",
+            "CURRY",
+            "LAVANDA",
+            "MENTA CUBANA",
+            "MENTA NUESTRA",
+            "MENTA NEGRA",
+            "OREGANO",
+            "POLEO",
+            "ROMERO",
+            "ROMERO PEQUEÑO",
+            "RUDA",
+            "SALVIA",
+            "STEVIA",
+            "TOMILLO",
         ],
-        "Fertilizantes y Sanidad Vegetal": [
-            "Fertilizantes Líquidos",
-            "Fertilizantes Sólidos / Liberación Lenta",
-            "Insecticidas y Plaguicidas",
-            "Fungicidas",
+        "PALMERAS": [
+            "AREKA",
+            "CYCAS REVOLUTA",
+            "IMPERIAL (ROYSTONEA REGIA)",
+            "PALMA BAMBU ( RHAPIS EXCELSA)",
+            "PALMITO (EUTERPE EDULIS )",
+            "PHOENIX CANARIENSIS",
+            "PINDO (SYAGRUS ROMANZOFFIANA)",
+            "SEAFORTIA ALEJANDRA (ARCHONTOPHOENIX ALEXANDRAE)",
+            "WASHINGTONIA ROBUSTA",
         ],
-        "Herramientas y Accesorios": [
-            "Herramientas de Mano",
-            "Elementos de Riego",
-            "Tijeras de Podar",
-            "Elementos de Protección",
+        "ARBUSTOS/ ENREDADERAS": [
+            "AMARANTHUS",
+            "ARALIA ELEGANTISIMA",
+            "ARALIA GERALIO",
+            "ARALIA VARIEGADA",
+            "AZALEA",
+            "BUXUS",
+            "BUXUS TERRON",
+            "CLERODENDRO",
+            "CAMPANITA PLATEADA (Convolvulus)",
+            "COLEUS SCUTELLARIOIDES",
+            "CRATAEGUS",
+            "CROTO GOLD STAR",
+            "CROTÒN",
+            "CROTO PETRA",
+            "CROTO LENGUA DE FUEGO",
+            "CROTO TIRABUZON",
+            "CROTO ASIATICO",
+            "DURANTA",
+            "DURANTA ERECTA",
+            "DURANTA VARIEGADA",
+            "DURANTA.SP",
+            "ENAMORADA DEL MURO",
+            "ENAMORADA DEL MURO VARIEGADA",
+            "ESTRELLA FEDERAL",
+            "EUPHORBIA VARIEGATA",
+            "LANTANA",
+            "MADRE SELVA",
+            "OLEO TEXANO",
+            "PALO DE AGUA",
+            "POLIGALA",
+            "PERESKIA ACULEATA",
+            "ROSA",
+            "ROSA AISBERG",
+            "ROSA CHINA",
+            "ROSA MINI",
+            "ROSA TREPADORA",
+            "SANTA RITA",
+            "CORONITA DE NOVIA (SPIRAEA CANTONIENSIS)",
+            "WESTRINGIA",
+            "YUCA",
         ],
-        "Decoración y Paisajismo": [
-            "Piedras Decorativas y Cascotes",
-            "Cortezas de Pino",
-            "Estacas y Tutores",
-            "Mallas y Redes",
+        "ÀRBOLES": [
+            "AGUARIBAY (SCHINUS MOLLE)",
+            "FICUS PANDURATA",
+            "GOMERO COMUN",
+            "GOMERO COMUN 1L",
+            "GOMERO DISCIPLINADO",
+            "GOMERO PINK",
+            "GOMERO VARIEGADO",
+            "LAUREL BLANCO",
+            "LAUREL DE JARDIN",
+            "PATA DE BUEY (BAUHINIA FORTICATA)",
+            "PANDURATA",
+            "TACUARITA",
+            "VIRARÒ",
+        ],
+        "SUCULENTAS": [
+            "ALOE VERA",
+            "KALANCHOE DOBLE",
+            "KALANCHOE MINI",
+            "NOLINA CHICA",
+            "NOLINA MEDIANA",
+            "NOLINA GRANDE",
+        ],
+        "FRUTALES": [
+            "CIRUELO",
+            "DURAZNERO",
+            "GUAJABA",
+            "LIMON EUREKA",
+            "MAMON RED LEDY",
+            "MANGO",
+            "MORA",
+            "NISPERO",
+            "NOGAL COMUN",
+            "NOGAL PECAN",
+            "OLIVO",
+            "PALTO",
         ],
     }
 
-    for padre, subs in categorias_iniciales.items():
+    for familia, especies in familias_inventario.items():
       cursor.execute(
           "INSERT INTO categorias (nombre, categoria_padre_id) VALUES (?, NULL)",
-          (padre,),
+          (familia,),
       )
-      padre_id = cursor.lastrowid
-      for sub in subs:
+      familia_id = cursor.lastrowid
+      for especie in especies:
         cursor.execute(
             "INSERT INTO categorias (nombre, categoria_padre_id) VALUES (?,"
             " ?)",
-            (sub, padre_id),
+            (especie, familia_id),
         )
+
+  # --- PRECARGAR PRODUCTOS INICIALES DESDE EL INVENTARIO DEL EXCEL SI LA TABLA PRODUCTOS ESTÁ VACÍA ---
+  cursor.execute("SELECT COUNT(*) FROM productos")
+  if cursor.fetchone()[0] == 0:
+    try:
+      df_inv = pd.read_excel(
+          "El_Botanico_Gestion_Integral 17-09.xlsx", sheet_name="INVENTARIO"
+      )
+      cat_default_id = 1
+      for _, row in df_inv.iterrows():
+        esp = row.get("ESPECIE")
+        if pd.isna(esp):
+          continue
+        precio = row.get("Precio Venta", 0)
+        stock = row.get("Existencias", 0)
+        try:
+          precio = float(precio)
+        except:
+          precio = 0.0
+        try:
+          stock = int(float(stock))
+        except:
+          stock = 0
+
+        # Generar SKU automático único basado en las primeras letras
+        sku_gen = "".join([c for c in str(esp) if c.isalnum()])[
+            :6
+        ].upper() + str(_)
+        cursor.execute(
+            """INSERT OR IGNORE INTO productos (categoria_id, sku, nombre, precio_venta, stock_actual)
+                   VALUES (?, ?, ?, ?, ?)""",
+            (cat_default_id, sku_gen, str(esp).strip(), precio, stock),
+        )
+    except Exception as e:
+      print("Aviso al precargar inventario:", e)
+
+  # --- PRECARGAR VENTAS HISTÓRICAS DESDE LA SOLAPA VENTAS SI LA TABLA VENTAS ESTÁ VACÍA ---
+  cursor.execute("SELECT COUNT(*) FROM ventas")
+  if cursor.fetchone()[0] == 0:
+    try:
+      df_ventas_excel = pd.read_excel(
+          "El_Botanico_Gestion_Integral 17-09.xlsx", sheet_name="Ventas"
+      )
+      df_ventas_excel = df_ventas_excel.dropna(subset=["Especie"])
+
+      for _, row in df_ventas_excel.iterrows():
+        fecha_val = str(row.get("Fecha", "2026-08-09"))[:10]
+        total_val = row.get("Total", 0)
+        try:
+          total_val = float(total_val)
+        except:
+          total_val = 0.0
+
+        cursor.execute(
+            "INSERT INTO ventas (fecha, total, medio_pago) VALUES (?, ?, ?)",
+            (fecha_val, total_val, "Efectivo"),
+        )
+        venta_id = cursor.lastrowid
+
+        # Buscar producto relacionado o crear uno genérico temporal
+        prod_nombre = str(row.get("Especie", "Planta General")).strip()
+        cant_val = row.get("Cantidad", 1)
+        try:
+          cant_val = int(float(cant_val))
+        except:
+          cant_val = 1
+
+        cursor.execute(
+            "SELECT id FROM productos WHERE nombre = ?", (prod_nombre,)
+        )
+        res_p = cursor.fetchone()
+        if res_p:
+          prod_id = res_p[0]
+        else:
+          # Insertar producto rápido si no estaba en inventario
+          sku_v = "".join([c for c in prod_nombre if c.isalnum()])[
+              :6
+          ].upper() + str(_)
+          cursor.execute(
+              """INSERT OR IGNORE INTO productos (categoria_id, sku, nombre, precio_venta, stock_actual)
+                       VALUES (1, ?, ?, ?, 0)""",
+              (sku_v, prod_nombre, total_val / max(1, cant_val)),
+          )
+          prod_id = cursor.lastrowid
+
+        cursor.execute(
+            """INSERT INTO detalle_ventas (venta_id, producto_id, cantidad, subtotal)
+                   VALUES (?, ?, ?, ?)""",
+            (venta_id, prod_id, cant_val, total_val),
+        )
+    except Exception as e:
+      print("Aviso al precargar ventas históricas:", e)
 
   conn.commit()
   conn.close()
@@ -436,7 +726,7 @@ with tab_nuevo:
 
 # ==================== 6. ELIMINAR PRODUCTO ====================
 with tab_eliminar:
-  st.subheader("🗑️️ Eliminar Producto del Inventario")
+  st.subheader("🗑️ Eliminar Producto del Inventario")
 
   df_productos_del = pd.read_sql(
       "SELECT id, sku, nombre FROM productos", conn
@@ -487,7 +777,7 @@ with tab_eliminar:
 
 # ==================== 7. GESTIÓN DE CATEGORÍAS ====================
 with tab_cat:
-  st.subheader("🗂️ Administrar Categorías y Subcategorías")
+  st.subheader("🗂️️ Administrar Categorías y Subcategorías")
 
   col1, col2 = st.columns(2)
 
@@ -524,7 +814,7 @@ with tab_cat:
           st.rerun()
     else:
       st.warning(
-          f"⚠️ ¿Confirmás que deseás crear la categoría **{nueva_cat.strip()}**?"
+          f"⚠️️ ¿Confirmás que deseás crear la categoría **{nueva_cat.strip()}**?"
       )
       col_e1, col_e2 = st.columns(2)
       with col_e1:
