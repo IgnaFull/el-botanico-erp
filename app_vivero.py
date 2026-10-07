@@ -11,6 +11,28 @@ st.set_page_config(
 DB_NAME = "vivero_web.db"
 
 
+def safe_float(val):
+  if pd.isna(val):
+    return 0.0
+  try:
+    return float(val)
+  except:
+    s = str(val).split("/")[0].strip()
+    try:
+      return float(s)
+    except:
+      return 0.0
+
+
+def safe_int(val):
+  if pd.isna(val):
+    return 0
+  try:
+    return int(float(val))
+  except:
+    return 0
+
+
 def inicializar_bd():
   conn = sqlite3.connect(DB_NAME)
   cursor = conn.cursor()
@@ -79,9 +101,7 @@ def inicializar_bd():
           )
           current_family_id = cursor.lastrowid
         else:
-          # Es una planta/producto que pertenece a la familia actual
           if current_family_id is None:
-            # Si aparece un producto antes de una familia, creamos una genérica
             cursor.execute(
                 "INSERT INTO categorias (nombre, categoria_padre_id) VALUES"
                 " ('GENERAL', NULL)"
@@ -89,17 +109,8 @@ def inicializar_bd():
             current_family_id = cursor.lastrowid
 
           nombre_prod = str(especie).strip()
-          precio = row.get("Precio Venta", 0)
-          stock = row.get("Existencias", 0)
-
-          try:
-            precio = float(precio)
-          except:
-            precio = 0.0
-          try:
-            stock = int(float(stock))
-          except:
-            stock = 0
+          precio = safe_float(row.get("Precio Venta"))
+          stock = safe_int(row.get("Existencias"))
 
           sku_gen = (
               "".join([c for c in nombre_prod if c.isalnum()][:6]).upper()
@@ -124,7 +135,7 @@ def inicializar_bd():
 
       for idx, row in df_v.iterrows():
         fecha_val = str(row.get("Fecha", "2026-08-09"))[:10]
-        total_val = float(row.get("Total", 0) or 0)
+        total_val = safe_float(row.get("Total"))
 
         cursor.execute(
             "INSERT INTO ventas (fecha, total, medio_pago) VALUES (?, ?, ?)",
@@ -133,7 +144,9 @@ def inicializar_bd():
         venta_id = cursor.lastrowid
 
         prod_nombre = str(row.get("Especie", "Planta General")).strip()
-        cant_val = int(float(row.get("Cantidad", 1) or 1))
+        cant_val = safe_int(row.get("Cantidad"))
+        if cant_val <= 0:
+          cant_val = 1
 
         cursor.execute(
             "SELECT id FROM productos WHERE UPPER(nombre) = UPPER(?)",
@@ -143,7 +156,6 @@ def inicializar_bd():
         if res_p:
           prod_id = res_p[0]
         else:
-          # Si la especie de la venta no estaba en el inventario, la creamos al vuelo
           sku_v = (
               "".join([c for c in prod_nombre if c.isalnum()][:6]).upper()
               + f"_v_{idx}"
