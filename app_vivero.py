@@ -10,87 +10,51 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(page_title="El Botánico - ERP", page_icon="🌱", layout="wide")
 
-# Control de estado de sesión
-if "user" not in st.session_state:
-    st.session_state["user"] = None
+st.sidebar.title("🌿 El Botánico")
+menu = st.sidebar.radio("Navegación", ["Inventario General", "Control de Stock"])
 
-def login_screen():
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.title("🌱 El Botánico - ERP")
-        st.markdown("### Sistema de Gestión e Inventario")
-        
-        with st.form("login_form"):
-            email = st.text_input("Correo electrónico")
-            password = st.text_input("Contraseña", type="password")
-            submit = st.form_submit_button("Ingresar al Sistema")
-            
-            if submit:
-                try:
-                    response = supabase.auth.sign_in_with_password({"email": email, "password": password})
-                    st.session_state["user"] = response.user
-                    st.success("¡Bienvenido!")
-                    st.rerun()
-                except Exception as e:
-                    st.error("Credenciales inválidas o usuario no registrado.")
+# Cargar datos desde Supabase
+def cargar_datos():
+    try:
+        response = supabase.table("inventario").select("*").execute()
+        return pd.DataFrame(response.data)
+    except Exception as e:
+        st.error(f"Error al conectar con Supabase: {e}")
+        return pd.DataFrame()
 
-def main_dashboard():
-    user_email = st.session_state["user"].email if st.session_state["user"] else "Administrador"
-    st.sidebar.title("🌿 El Botánico")
-    st.sidebar.write(f"Usuario: **{user_email}**")
+df = cargar_datos()
+
+if menu == "Inventario General":
+    st.header("📦 Inventario General de Plantas e Insumos")
+    st.markdown("Consulta en tiempo real de todos los productos cargados en la base de datos.")
     
-    menu = st.sidebar.radio("Navegación", ["Inventario General", "Control de Stock", "Gestión de Costos"])
-    
-    if st.sidebar.button("Cerrar Sesión"):
-        supabase.auth.sign_out()
-        st.session_state["user"] = None
-        st.rerun()
-
-    # Cargar datos desde Supabase
-    def cargar_datos():
-        try:
-            response = supabase.table("inventario").select("*").execute()
-            return pd.DataFrame(response.data)
-        except Exception as e:
-            st.error(f"Error al conectar con Supabase: {e}")
-            return pd.DataFrame()
-
-    df = cargar_datos()
-
-    if menu == "Inventario General":
-        st.header("📦 Inventario General de Plantas e Insumos")
-        st.markdown("Consulta en tiempo real de todos los productos cargados en la base de datos.")
+    if not df.empty and "familia" in df.columns:
+        familias = ["Todas"] + list(df["familia"].dropna().unique())
+        familia_seleccionada = st.selectbox("Filtrar por Familia", familias)
         
-        if not df.empty and "familia" in df.columns:
-            familias = ["Todas"] + list(df["familia"].dropna().unique())
-            familia_seleccionada = st.selectbox("Filtrar por Familia", familias)
-            
-            if familia_seleccionada != "Todas":
-                df_filtrado = df[df["familia"] == familia_seleccionada]
-            else:
-                df_filtrado = df
-                
-            # Buscador por texto
-            busqueda = st.text_input("🔍 Buscar por nombre, especie o ID:")
-            if busqueda:
-                df_filtrado = df_filtrado[
-                    df_filtrado.astype(str).apply(lambda x: x.str.contains(busqueda, case=False)).any(axis=1)
-                ]
-                
-            st.dataframe(df_filtrado, use_container_width=True)
-            st.info(f"Total de registros mostrados: {len(df_filtrado)}")
+        if familia_seleccionada != "Todas":
+            df_filtrado = df[df["familia"] == familia_seleccionada]
         else:
-            st.warning("La tabla de inventario se encuentra vacía o faltan columnas.")
+            df_filtrado = df
+            
+        busqueda = st.text_input("🔍 Buscar por nombre, especie o ID:")
+        if busqueda:
+            df_filtrado = df_filtrado[
+                df_filtrado.astype(str).apply(lambda x: x.str.contains(busqueda, case=False)).any(axis=1)
+            ]
+            
+        st.dataframe(df_filtrado, use_container_width=True)
+        st.info(f"Total de registros mostrados: {len(df_filtrado)}")
+    else:
+        st.warning("La tabla de inventario se encuentra vacía o faltan columnas.")
 
-    elif menu == "Control de Stock":
-        st.header("📊 Control de Stock, Altas y Gestión de Ítems")
-        st.markdown("Administrá el stock actual, creá nuevos productos o da de baja ítems erróneos.")
-        
-        if df.empty:
-            st.warning("No hay productos disponibles en la base de datos.")
-            return
-
-        # Pestañas para separar Acciones de Stock, Creación de Nuevos Ítems y Eliminación
+elif menu == "Control de Stock":
+    st.header("📊 Control de Stock, Altas y Gestión de Ítems")
+    st.markdown("Administrá el stock actual, creá nuevos productos o da de baja ítems erróneos.")
+    
+    if df.empty:
+        st.warning("No hay productos disponibles en la base de datos.")
+    else:
         tab_actualizar, tab_crear, tab_eliminar = st.tabs(["🔄 Actualizar Stock", "➕ Nuevo Ítem", "🗑️ Eliminar Ítem"])
         
         with tab_actualizar:
@@ -138,8 +102,6 @@ def main_dashboard():
                     producto = st.text_input("Producto / Especie / Modelo")
                     contenedor = st.text_input("Contenedor / Medida (Ej: M15, 5L)")
                     stock_actual = st.number_input("Stock Inicial", min_value=0, value=0, step=1)
-                    costo_unitario = st.number_input("Costo Unitario ($)", min_value=0.0, value=0.0, step=0.1)
-                    precio_venta = st.number_input("Precio de Venta ($)", min_value=0.0, value=0.0, step=0.1)
                 
                 guardar_nuevo_btn = st.form_submit_button("🚀 Dar de Alta en Supabase")
                 
@@ -153,9 +115,7 @@ def main_dashboard():
                                 "subcategoria": subcategoria.strip(),
                                 "producto": producto.strip().upper(),
                                 "contenedor": contenedor.strip().upper(),
-                                "stock_actual": stock_actual,
-                                "costo_unitario": costo_unitario,
-                                "precio_venta": precio_venta
+                                "stock_actual": stock_actual
                             }
                             supabase.table("inventario").insert(nuevo_registro).execute()
                             st.success(f"¡El producto '{producto}' fue creado con éxito!")
@@ -167,4 +127,21 @@ def main_dashboard():
 
         with tab_eliminar:
             df["opcion_display"] = df["id_item"].astype(str) + " - " + df["producto"].astype(str) + " (" + df["contenedor"].astype(str) + ")"
-            producto_a_
+            producto_a_borrar = st.selectbox("Seleccionar Producto para eliminar", df["opcion_display"].tolist(), key="select_borrar")
+            match_borrar = df[df["opcion_display"] == producto_a_borrar]
+            if not match_borrar.empty:
+                prod_borrar_data = match_borrar.iloc[0]
+                
+                st.warning(f"⚠️ Vas a eliminar el ítem: **{prod_borrar_data['id_item']} - {prod_borrar_data['producto']}**")
+                confirmar_borrado = st.checkbox("Confirmo que deseo eliminar este ítem definitivamente")
+                
+                if st.button("❌ Eliminar Ítem de Supabase", type="primary"):
+                    if confirmar_borrado:
+                        try:
+                            supabase.table("inventario").delete().eq("id_item", str(prod_borrar_data["id_item"])).execute()
+                            st.success("¡El ítem fue eliminado correctamente!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error al eliminar: {e}")
+                    else:
+                        st.error("Debes tildar la casilla de confirmación.")
