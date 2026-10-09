@@ -183,7 +183,90 @@ def main_dashboard():
 
     elif menu == "Gestión de Costos":
         st.header("💰 Márgenes y Costos")
-        st.write("Próximamente: Análisis de costos unitarios y precios de venta.")
+elif menu == "Gestión de Costos":
+        st.header("💰 Gestión de Costos, Márgenes y Precios")
+        st.markdown("Analizá la rentabilidad de tus productos, calcula márgenes de ganancia y actualiza precios.")
+
+        if df.empty:
+            st.warning("No hay productos disponibles en la base de datos.")
+            return
+
+        # Asegurarnos de que existan las columnas de costos y precios, o crearlas limpias
+        if "costo_unitario" not in df.columns:
+            df["costo_unitario"] = 0.0
+        if "precio_venta" not in df.columns:
+            df["precio_venta"] = 0.0
+
+        tab_calculadora, tab_resumen = st.tabs(["🧮 Simulador y Actualizador de Precios", "📊 Inventario Valorizado (Capital y Venta)"])
+
+        with tab_calculadora:
+            st.markdown("### 🏷️ Ajuste de Márgenes por Producto")
+            
+            df["opcion_display"] = df["id_item"].astype(str) + " - " + df["producto"].astype(str) + " (" + df["contenedor"].astype(str) + ")"
+            producto_costo = st.selectbox("Seleccionar producto para analizar costo y precio", df["opcion_display"].tolist(), key="select_costo")
+            
+            match_costo = df[df["opcion_display"] == producto_costo]
+            if not match_costo.empty:
+                prod_c = match_costo.iloc[0]
+                
+                costo_actual = float(prod_c["costo_unitario"]) if pd.notna(prod_c["costo_unitario"]) else 0.0
+                precio_actual = float(prod_c["precio_venta"]) if pd.notna(prod_c["precio_venta"]) else 0.0
+                
+                # Cálculos automáticos
+                ganancia_pesos = precio_actual - costo_actual
+                margen_porcentaje = ((ganancia_pesos / costo_actual) * 100) if costo_actual > 0 else 0.0
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric(label="Costo Unitario ($)", value=f"${costo_actual:,.2f}")
+                with col2:
+                    st.metric(label="Precio de Venta Actual ($)", value=f"${precio_actual:,.2f}", delta=f"${ganancia_pesos:,.2f} ganancia")
+                with col3:
+                    st.metric(label="Margen de Ganancia", value=f"{margen_porcentaje:.1f}%")
+
+                st.markdown("---")
+                with st.form("form_actualizar_precios"):
+                    st.markdown("#### ✏️ Modificar Costo o Precio de Venta")
+                    nuevo_costo = st.number_input("Nuevo Costo Unitario ($)", min_value=0.0, value=float(costo_actual), step=10.0)
+                    nuevo_precio = st.number_input("Nuevo Precio de Venta ($)", min_value=0.0, value=float(precio_actual), step=10.0)
+                    
+                    guardar_precio_btn = st.form_submit_button("💾 Guardar Cambios de Costos y Precios")
+                    
+                    if guardar_precio_btn:
+                        try:
+                            supabase.table("inventario").update({
+                                "costo_unitario": nuevo_costo,
+                                "precio_venta": nuevo_precio
+                            }).eq("id_item", str(prod_c["id_item"])).execute()
+                            
+                            st.success("¡Costos y precios actualizados con éxito en Supabase!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error al actualizar precios: {e}")
+
+        with tab_resumen:
+            st.markdown("### 📈 Resumen Financiero del Vivero")
+            
+            # Limpiar datos numéricos para cálculos
+            df["stock_num"] = pd.to_numeric(df["stock_actual"], errors="fillna").fillna(0)
+            df["costo_num"] = pd.to_numeric(df["costo_unitario"], errors="fillna").fillna(0.0)
+            df["precio_num"] = pd.to_numeric(df["precio_venta"], errors="fillna").fillna(0.0)
+            
+            capital_total = (df["stock_num"] * df["costo_num"]).sum()
+            valor_venta_total = (df["stock_num"] * df["precio_num"]).sum()
+            ganancia_potencial = valor_venta_total - capital_total
+
+            col_a, col_b, col_c = st.columns(3)
+            with col_a:
+                st.metric(label="Capital Invertido (Costo Total)", value=f"${capital_total:,.2f}")
+            with col_b:
+                st.metric(label="Valor de Venta Potencial", value=f"${valor_venta_total:,.2f}")
+            with col_c:
+                st.metric(label="Ganancia Bruta Estimada", value=f"${ganancia_potencial:,.2f}")
+
+            st.markdown("---")
+            st.dataframe(df[["id_item", "familia", "producto", "contenedor", "stock_num", "costo_num", "precio_num"]], use_container_width=True)
+        
 
 if st.session_state["user"] is None:
     login_screen()
