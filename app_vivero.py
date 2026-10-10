@@ -173,12 +173,6 @@ elif menu == "Registro de Ventas":
                 st.info(f"Stock disponible actualmente: **{stock_disponible} unidades**")
                 
                 with st.form("form_registrar_venta"):
-                    col_f1, col_f2 = st.columns(2)
-                    with col_f1:
-                        fecha_venta = st.date_input("Fecha de la Venta", value=datetime.now().date())
-                    with col_f2:
-                        hora_venta = st.time_input("Hora de la Venta", value=datetime.now().time())
-                        
                     cant_a_vender = st.number_input("Cantidad a vender", min_value=1, max_value=max(1, stock_disponible), value=1, step=1)
                     
                     precio_sugerido = float(p_data["precio_venta"]) if "precio_venta" in p_data and pd.notna(p_data["precio_venta"]) else 0.0
@@ -194,7 +188,9 @@ elif menu == "Registro de Ventas":
                             try:
                                 nuevo_stock = stock_disponible - cant_a_vender
                                 total_venta = cant_a_vender * precio_cobrado
-                                fecha_hora_completa = datetime.combine(fecha_venta, hora_venta).strftime("%Y-%m-%d %H:%M:%S")
+                                
+                                # Capturar fecha y hora exacta del sistema de manera automática
+                                fecha_hora_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                 
                                 supabase.table("inventario").update({"stock_actual": nuevo_stock}).eq("id_item", str(p_data["id_item"])).execute()
                                 
@@ -205,7 +201,7 @@ elif menu == "Registro de Ventas":
                                     "precio_unitario": precio_cobrado,
                                     "total": total_venta,
                                     "cliente": cliente.strip(),
-                                    "fecha": fecha_hora_completa
+                                    "fecha": fecha_hora_actual
                                 }
                                 supabase.table("ventas").insert(venta_registro).execute()
                                 
