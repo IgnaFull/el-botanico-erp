@@ -48,7 +48,7 @@ if not df.empty:
     # Columna combinada interna para los selectores
     df["opcion_display"] = df["id_item"].astype(str) + " - " + df["producto"].astype(str) + " (" + df["contenedor"].astype(str) + ")"
 
-# --- ORDEN EXACTO DE MÓDULOS SOLICITADO ---
+# --- ORDEN EXACTO DE MÓDULOS ---
 tab_dash, tab_inv, tab_stock, tab_ventas_1, tab_precios, tab_ventas_2, tab_reportes, tab_config = st.tabs([
     "1. 📊 Dashboard",
     "2. 📦 Inventario General", 
@@ -528,11 +528,73 @@ with tab_reportes:
 
 with tab_config:
     st.header("⚙️ Módulo de Configuración General")
-    st.markdown("Personalizá la apariencia visual y las columnas visibles de la tabla en pantalla.")
+    st.markdown("Personalizá la apariencia visual, las columnas visibles, restaurá o borrá el catálogo de familias e inventario.")
     
+    col_cfg1, col_cfg2 = st.columns(2)
+    
+    with col_cfg1:
+        st.subheader("🔄 Cargar Catálogo Original")
+        st.markdown("Restablecer la base de datos con los ítems iniciales del Excel.")
+        conf_restaurar = st.checkbox("Confirmo que deseo restablecer el catálogo", key="chk_rest")
+        if st.button("🚀 Cargar Catálogo Original", type="primary", key="btn_rest"):
+            if conf_restaurar:
+                try:
+                    catalogo_inicial = [
+                        {"id_item": "PL-SUC-001", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO", "contenedor": "M15", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-002", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO", "contenedor": "M18", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-003", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO", "contenedor": "M22", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-004", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO", "contenedor": "M25", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-005", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO", "contenedor": "5L", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-006", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO", "contenedor": "10L", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-007", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO", "contenedor": "15L", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-008", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO", "contenedor": "20L", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-009", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO", "contenedor": "30L", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-010", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO", "contenedor": "Terrón", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-011", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO VARIEGADO", "contenedor": "M15", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-012", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO VARIEGADO", "contenedor": "M18", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-013", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO VARIEGADO", "contenedor": "M22", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-014", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO VARIEGADO", "contenedor": "M25", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-015", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO VARIEGADO", "contenedor": "5L", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-016", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO VARIEGADO", "contenedor": "10L", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-017", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO VARIEGADO", "contenedor": "15L", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-018", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO VARIEGADO", "contenedor": "20L", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-019", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE AMERICANO VARIEGADO", "contenedor": "Terrón", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-020", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE ANGUSTIFOLIA MAGUEY", "contenedor": "M15", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-039", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE DESMETTIANA", "contenedor": "M15", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-046", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE DESMETTIANA", "contenedor": "20L", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-047", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE DESMETTIANA", "contenedor": "Terrón", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-SUC-048", "familia": "PLANTAS", "categoria": "SUCULENTAS Y CACTUS", "subcategoria": "-", "producto": "AGAVE DESMETTIANA VARIEGADO", "contenedor": "M15", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-INT-101", "familia": "PLANTAS", "categoria": "PLANTAS DE INTERIOR", "subcategoria": "-", "producto": "ALOCACIA (OREJA DE ELEFANTE) MEDIANA", "contenedor": "5L", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-INT-102", "familia": "PLANTAS", "categoria": "PLANTAS DE INTERIOR", "subcategoria": "-", "producto": "ALOCACIA (OREJA DE ELEFANTE) GRANDE", "contenedor": "10L", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0},
+                        {"id_item": "PL-INT-213", "familia": "PLANTAS", "categoria": "PLANTAS DE INTERIOR", "subcategoria": "-", "producto": "MONSTERA", "contenedor": "3L", "stock_actual": 0, "costo_unitario": 0.0, "precio_venta": 0.0}
+                    ]
+                    for item in catalogo_inicial:
+                        supabase.table("inventario").upsert(item, on_conflict="id_item").execute()
+                    st.success("¡Catálogo original cargado con éxito!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {e}")
+            else:
+                st.error("Debes tildar la casilla de confirmación.")
+
+    with col_cfg2:
+        st.subheader("🗑️ Borrar Todas las Familias e Ítems")
+        st.markdown("⚠️ **Peligro:** Esto eliminará absolutamente todo el inventario y familias de la base de datos.")
+        conf_borrar_todo = st.checkbox("Confirmo que quiero borrar TODAS las familias y productos", key="chk_borrar_todo")
+        if st.button("🔥 Borrar Todo el Inventario (Vaciar Tabla)", type="primary", key="btn_borrar_todo"):
+            if conf_borrar_todo:
+                try:
+                    # Borrar todos los registros de la tabla inventario
+                    supabase.table("inventario").delete().neq("id_item", "FILTRO_FALTO_PARA_BORRAR_TODO").execute()
+                    st.success("¡Todas las familias y productos fueron eliminados de la base de datos!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al borrar: {e}")
+            else:
+                st.error("Debes tildar la casilla de confirmación.")
+
+    st.markdown("---")
     st.subheader("🛠️ Personalizar Columnas del Inventario General")
-    st.markdown("Tildá o destildá las columnas que querés que aparezcan en la tabla principal para optimizar el espacio:")
-    
     if not df.empty:
         all_cols = [c for c in df.columns if c != "opcion_display"]
         default_cols = [c for c in ["id_item", "familia", "producto", "contenedor", "stock_actual", "precio_venta", "margen_neto"] if c in all_cols]
