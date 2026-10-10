@@ -43,7 +43,7 @@ if not df.empty:
     # Columna combinada interna para los selectores
     df["opcion_display"] = df["id_item"].astype(str) + " - " + df["producto"].astype(str) + " (" + df["contenedor"].astype(str) + ")"
 
-# --- PESTAÑAS SUPERIORES TIPO NAVEGADOR (INCLUYE CONFIGURACIÓN) ---
+# --- PESTAÑAS SUPERIORES TIPO NAVEGADOR ---
 tab_inv, tab_ventas, tab_stock, tab_precios, tab_config = st.tabs([
     "📦 Inventario General", 
     "🛒 Registro de Ventas", 
@@ -57,17 +57,6 @@ with tab_inv:
     st.markdown("Consulta general de plantas, insumos, costos, precios y márgenes de ganancia.")
     
     if not df.empty and "familia" in df.columns:
-        # Selector de columnas visibles para ganar espacio en pantalla (Checklist interactivo)
-        columnas_disponibles = [col for col in df.columns if col != "opcion_display"]
-        columnas_por_defecto = [c for c in ["id_item", "familia", "producto", "contenedor", "stock_actual", "precio_venta", "margen_neto"] if c in columnas_disponibles]
-        
-        with st.expander("🛠️ Personalizar columnas visibles (Ajustar vista en pantalla)", expanded=False):
-            columnas_seleccionadas = st.multiselect(
-                "Seleccioná las columnas que querés mostrar:",
-                options=columnas_disponibles,
-                default=columnas_por_defecto
-            )
-        
         familias = ["Todas"] + list(df["familia"].dropna().unique())
         familia_seleccionada = st.selectbox("Filtrar por Familia", familias, key="filtro_fam_inv")
         
@@ -82,9 +71,16 @@ with tab_inv:
                 df_filtrado.astype(str).apply(lambda x: x.str.contains(busqueda, case=False)).any(axis=1)
             ]
             
-        # Filtrar solo las columnas elegidas por el usuario
-        if columnas_seleccionadas:
-            df_tabla_mostrar = df_filtrado[columnas_seleccionadas]
+        # Aplicar las columnas seleccionadas en el módulo de Configuración (si existen en session_state)
+        columnas_disponibles = [col for col in df.columns if col != "opcion_display"]
+        columnas_por_defecto = [c for c in ["id_item", "familia", "producto", "contenedor", "stock_actual", "precio_venta", "margen_neto"] if c in columnas_disponibles]
+        
+        cols_a_mostrar = st.session_state.get("columnas_visibles", columnas_por_defecto)
+        # Filtrar solo aquellas que existan realmente en el DataFrame actual
+        cols_validas = [c for c in cols_a_mostrar if c in df_filtrado.columns]
+        
+        if cols_validas:
+            df_tabla_mostrar = df_filtrado[cols_validas]
         else:
             df_tabla_mostrar = df_filtrado
 
@@ -332,16 +328,32 @@ with tab_precios:
 
 with tab_config:
     st.header("⚙️ Módulo de Configuración General")
-    st.markdown("Personalizá la apariencia y las preferencias del sistema ERP.")
+    st.markdown("Personalizá la apariencia visual y las columnas visibles de la tabla en pantalla.")
     
+    st.subheader("🛠️ Personalizar Columnas del Inventario General")
+    st.markdown("Tildá o destildá las columnas que querés que aparezcan en la tabla principal para optimizar el espacio:")
+    
+    if not df.empty:
+        all_cols = [c for c in df.columns if c != "opcion_display"]
+        default_cols = [c for c in ["id_item", "familia", "producto", "contenedor", "stock_actual", "precio_venta", "margen_neto"] if c in all_cols]
+        
+        # Guardar la selección en session_state para que persista al navegar
+        cols_elegidas = st.multiselect(
+            "Columnas visibles en el Inventario General:",
+            options=all_cols,
+            default=st.session_state.get("columnas_visibles", default_cols)
+        )
+        st.session_state["columnas_visibles"] = cols_elegidas
+    else:
+        st.info("Cargá datos en el inventario para poder configurar las columnas.")
+        
+    st.markdown("---")
     st.subheader("🎨 Apariencia Visual (Tema)")
-    st.markdown("Seleccioná el modo visual de la aplicación según tu comodidad para el mostrador:")
-    
-    # Selector de tema visual utilizando inyección de CSS/Configuración de Streamlit
     tema_seleccionado = st.radio(
         "Modo de Pantalla", 
         ["🌙 Modo Oscuro (Dark)", "☀️ Modo Claro (Light)"],
-        index=0
+        index=0,
+        key="radio_tema"
     )
     
     if "Modo Claro" in tema_seleccionado:
@@ -356,7 +368,7 @@ with tab_config:
             """, 
             unsafe_allow_html=True
         )
-        st.info("☀️ Modo Claro aplicado correctamente. (También podés configurar el tema por defecto desde los ajustes de Streamlit Cloud).")
+        st.info("☀️ Modo Claro aplicado correctamente.")
     else:
         st.markdown(
             """
