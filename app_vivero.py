@@ -48,15 +48,16 @@ if not df.empty:
     # Columna combinada interna para los selectores
     df["opcion_display"] = df["id_item"].astype(str) + " - " + df["producto"].astype(str) + " (" + df["contenedor"].astype(str) + ")"
 
-# --- PESTAÑAS SUPERIORES TIPO NAVEGADOR ---
-tab_dash, tab_inv, tab_ventas, tab_reportes, tab_stock, tab_precios, tab_config = st.tabs([
-    "📊 Dashboard",
-    "📦 Inventario General", 
-    "🛒 Registro de Ventas", 
-    "📈 Reportes",
-    "📊 Control de Stock", 
-    "🏷️ Actualizar Precios",
-    "⚙️ Configuración"
+# --- ORDEN EXACTO DE MÓDULOS SOLICITADO ---
+tab_dash, tab_inv, tab_stock, tab_ventas_1, tab_precios, tab_ventas_2, tab_reportes, tab_config = st.tabs([
+    "1. 📊 Dashboard",
+    "2. 📦 Inventario General", 
+    "3. 📊 Control de Stock", 
+    "4. 🛒 Registro de Ventas",
+    "5. 🏷️ Actualizar Precios",
+    "6. 🛒 Registro de Ventas",
+    "7. 📈 Reportes",
+    "8. ⚙️ Configuración"
 ])
 
 with tab_dash:
@@ -162,196 +163,6 @@ with tab_inv:
     else:
         st.warning("La tabla de inventario se encuentra vacía o faltan columnas.")
 
-with tab_ventas:
-    st.header("🛒 Módulo de Registro de Ventas & Mostrador")
-    st.markdown("Realizá ventas rápidas, accesos directos o corregí errores eliminando ventas mal cargadas.")
-
-    sub_tab_reg, sub_tab_rapido, sub_tab_hist = st.tabs(["💰 Venta Estándar", "⚡ Accesos Directos (Mostrador)", "📋 Historial, Tickets & Anulaciones"])
-
-    with sub_tab_reg:
-        if df.empty:
-            st.warning("No hay productos disponibles en el inventario para vender.")
-        else:
-            producto_venta = st.selectbox("Seleccionar Producto / Insumo a Vender", df["opcion_display"].tolist(), key="select_venta_tab")
-            
-            match_v = df[df["opcion_display"] == producto_venta]
-            if not match_v.empty:
-                p_data = match_v.iloc[0]
-                stock_disponible = int(p_data["stock_actual"]) if pd.notna(p_data["stock_actual"]) else 0
-                precio_registrado = float(p_data["precio_venta"]) if pd.notna(p_data["precio_venta"]) else 0.0
-                
-                col_info1, col_info2, col_info3 = st.columns(3)
-                col_info1.metric("📦 ID de Ítem", str(p_data["id_item"]))
-                col_info2.metric("🌱 Stock Disponible", f"{stock_disponible} un.")
-                col_info3.metric("💲 Precio Sugerido", f"${precio_registrado:,.2f}")
-                
-                st.markdown("---")
-                with st.form("form_registrar_venta_tab"):
-                    cant_a_vender = st.number_input("Cantidad a vender", min_value=1, max_value=max(1, stock_disponible), value=1, step=1)
-                    precio_cobrado = st.number_input("Precio unitario de venta ($) [Editable]", min_value=0.0, value=precio_registrado, step=10.0)
-                    cliente = st.text_input("Cliente (Opcional)", value="General")
-                    
-                    completar_venta_btn = st.form_submit_button("✅ Confirmar Venta y Descontar Stock")
-                    
-                    if completar_venta_btn:
-                        if cant_a_vender > stock_disponible:
-                            st.error("No hay suficiente stock para realizar esta venta.")
-                        else:
-                            try:
-                                nuevo_stock = stock_disponible - cant_a_vender
-                                total_venta = cant_a_vender * precio_cobrado
-                                fecha_hora_actual = (datetime.now() - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
-                                
-                                supabase.table("inventario").update({"stock_actual": nuevo_stock}).eq("id_item", str(p_data["id_item"])).execute()
-                                
-                                venta_registro = {
-                                    "id_item": str(p_data["id_item"]),
-                                    "producto": str(p_data["producto"]),
-                                    "cantidad": cant_a_vender,
-                                    "precio_unitario": precio_cobrado,
-                                    "total": total_venta,
-                                    "cliente": cliente.strip(),
-                                    "fecha": fecha_hora_actual
-                                }
-                                supabase.table("ventas").insert(venta_registro).execute()
-                                
-                                st.success(f"¡Venta registrada con éxito! Total: ${total_venta:,.2f}. Stock actualizado.")
-                                
-                                st.markdown("### 🧾 Comprobante / Ticket Digital")
-                                ticket_txt = f"🌿 *EL BOTÁNICO - TICKET DE VENTA*\n📅 Fecha: {fecha_hora_actual}\n👤 Cliente: {cliente.strip()}\n--------------------------------\n🌱 Producto: {p_data['producto']} ({p_data['contenedor']})\n🔢 Cantidad: {cant_a_vender}\n💲 Precio Unit.: ${precio_cobrado:,.2f}\n💰 *TOTAL: ${total_venta:,.2f}*\n--------------------------------\n¡Gracias por tu compra!"
-                                st.code(ticket_txt, language="markdown")
-                            except Exception as e:
-                                st.error(f"Error al procesar la venta: {e}")
-
-    with sub_tab_rapido:
-        st.markdown("### ⚡ Botones Rápidos para Mostrador (Venta Flash)")
-        st.markdown("Hacé clic en cualquiera de los productos destacados para vender 1 unidad al precio sugerido al instante.")
-        
-        if df.empty:
-            st.warning("No hay inventario cargado.")
-        else:
-            df_con_stock = df[df["stock_actual"] > 0].head(6)
-            if df_con_stock.empty:
-                st.info("No hay productos con stock disponible para botones rápidos.")
-            else:
-                cols_flash = st.columns(3)
-                for idx, row in df_con_stock.iterrows():
-                    col_target = cols_flash[idx % 3]
-                    with col_target:
-                        btn_label = f"🌿 {row['producto']}\n({row['contenedor']})\n💲 ${float(row['precio_venta']):,.2f}"
-                        if st.button(btn_label, key=f"flash_{row['id_item']}", use_container_width=True):
-                            try:
-                                stock_actual_flash = int(row["stock_actual"])
-                                nuevo_stock_flash = stock_actual_flash - 1
-                                precio_f = float(row["precio_venta"])
-                                fecha_flash = (datetime.now() - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
-                                
-                                supabase.table("inventario").update({"stock_actual": nuevo_stock_flash}).eq("id_item", str(row["id_item"])).execute()
-                                
-                                reg_flash = {
-                                    "id_item": str(row["id_item"]),
-                                    "producto": str(row["producto"]),
-                                    "cantidad": 1,
-                                    "precio_unitario": precio_f,
-                                    "total": precio_f,
-                                    "cliente": "General",
-                                    "fecha": fecha_flash
-                                }
-                                supabase.table("ventas").insert(reg_flash).execute()
-                                st.success(f"¡Venta flash de 1 {row['producto']} registrada! ($ {precio_f:,.2f})")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error en venta flash: {e}")
-
-    with sub_tab_hist:
-        st.markdown("### 📈 Historial Completo, Resumen y Corrección de Ventas")
-        try:
-            resp_ventas = supabase.table("ventas").select("*").execute()
-            df_ventas_hist = pd.DataFrame(resp_ventas.data)
-            
-            if not df_ventas_hist.empty:
-                total_facturado = pd.to_numeric(df_ventas_hist["total"], errors="coerce").sum()
-                total_unidades = pd.to_numeric(df_ventas_hist["cantidad"], errors="coerce").sum()
-                cantidad_transacciones = len(df_ventas_hist)
-
-                col_1, col_2, col_3 = st.columns(3)
-                col_1.metric(label="Facturación Total Acumulada", value=f"${total_facturado:,.2f}")
-                col_2.metric(label="Unidades Vendidas Totales", value=f"{total_unidades:,}")
-                col_3.metric(label="Cantidad de Ventas", value=f"{cantidad_transacciones}")
-
-                st.markdown("---")
-                st.dataframe(df_ventas_hist, use_container_width=True)
-                
-                st.markdown("### ❌ Anular / Eliminar Venta Mal Cargada")
-                st.markdown("Seleccioná la venta por su identificador en la base de datos para borrarla y reponer automáticamente el stock.")
-                
-                df_ventas_hist["display_venta"] = "ID Venta: " + df_ventas_hist["id"].astype(str) + " | Fecha: " + df_ventas_hist["fecha"].astype(str) + " | Prod: " + df_ventas_hist["producto"].astype(str) + " (" + df_ventas_hist["cantidad"].astype(str) + " un. - $" + df_ventas_hist["total"].astype(str) + ")"
-                
-                venta_a_anular = st.selectbox("Seleccionar venta a anular", df_ventas_hist["display_venta"].tolist())
-                
-                match_anular = df_ventas_hist[df_ventas_hist["display_venta"] == venta_a_anular]
-                if not match_anular.empty:
-                    v_sel = match_anular.iloc[0]
-                    
-                    st.warning(f"⚠️ Vas a eliminar la venta del producto **{v_sel['producto']}** ({v_sel['cantidad']} unidades) por un total de **${v_sel['total']}**. Esta acción devolverá las unidades al stock del inventario.")
-                    conf_anular = st.checkbox("Confirmo que deseo anular esta venta y reponer el stock")
-                    
-                    if st.button("🗑️ Anular Venta Seleccionada", type="primary"):
-                        if conf_anular:
-                            try:
-                                id_venta_db = v_sel["id"]
-                                id_item_afectado = v_sel["id_item"]
-                                cant_devuelta = int(v_sel["cantidad"])
-                                
-                                resp_inv_prod = supabase.table("inventario").select("stock_actual").eq("id_item", str(id_item_afectado)).execute()
-                                if resp_inv_prod.data:
-                                    stock_actual_inv = int(resp_inv_prod.data[0]["stock_actual"])
-                                    nuevo_stock_restituido = stock_actual_inv + cant_devuelta
-                                    
-                                    supabase.table("inventario").update({"stock_actual": nuevo_stock_restituido}).eq("id_item", str(id_item_afectado)).execute()
-                                
-                                supabase.table("ventas").delete().eq("id", id_venta_db).execute()
-                                
-                                st.success("¡Venta anulada con éxito y stock repuesto correctamente!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error al anular la venta: {e}")
-                        else:
-                            st.error("Debes tildar la casilla de confirmación.")
-            else:
-                st.info("Todavía no hay ventas registradas en Supabase.")
-        except Exception as e:
-            st.warning(f"No se pudo cargar el historial de ventas: {e}")
-
-with tab_reportes:
-    st.header("📊 Reportes y Estadísticas de Vivero")
-    st.markdown("Análisis visual del rendimiento comercial y rotación de productos.")
-    
-    try:
-        resp_v_rep = supabase.table("ventas").select("*").execute()
-        df_rep = pd.DataFrame(resp_v_rep.data)
-        
-        if not df_rep.empty:
-            df_rep["total"] = pd.to_numeric(df_rep["total"], errors="coerce").fillna(0)
-            df_rep["cantidad"] = pd.to_numeric(df_rep["cantidad"], errors="coerce").fillna(0)
-            
-            col_r1, col_r2 = st.columns(2)
-            with col_r1:
-                st.subheader("🏆 Productos más vendidos (Unidades)")
-                top_productos = df_rep.groupby("producto")["cantidad"].sum().reset_index()
-                top_productos = top_productos.sort_values(by="cantidad", ascending=False).set_index("producto")
-                st.bar_chart(top_productos)
-                
-            with col_r2:
-                st.subheader("💰 Facturación por Producto ($)")
-                top_facturacion = df_rep.groupby("producto")["total"].sum().reset_index()
-                top_facturacion = top_facturacion.sort_values(by="total", ascending=False).set_index("producto")
-                st.bar_chart(top_facturacion)
-        else:
-            st.info("Registrá algunas ventas para visualizar los gráficos estadísticos aquí.")
-    except Exception as e:
-        st.warning(f"No se pudieron cargar los reportes gráficos: {e}")
-
 with tab_stock:
     st.header("📊 Control de Stock, Altas y Gestión de Ítems")
     st.markdown("Administrá el stock, da de alta nuevos productos, elimina registros o blanquea el inventario.")
@@ -366,7 +177,6 @@ with tab_stock:
             "⚠️ Reiniciar Inventario"
         ])
         
-        # Definir tabla resumida auxiliar para mostrar debajo de cada sub-pestaña
         cols_tabla_stock = [c for c in ["id_item", "familia", "producto", "contenedor", "stock_actual"] if c in df.columns]
         df_resumen_stock = df[cols_tabla_stock]
 
@@ -491,6 +301,64 @@ with tab_stock:
             st.subheader("📋 Estado Actual del Inventario y Stock")
             st.dataframe(df_resumen_stock, use_container_width=True)
 
+with tab_ventas_1:
+    st.header("🛒 Registro de Ventas - Venta Estándar y Mostrador")
+    st.markdown("Seleccioná un producto, verificá su precio y stock, y registrá la venta al instante.")
+
+    if df.empty:
+        st.warning("No hay productos disponibles en el inventario para vender.")
+    else:
+        producto_venta = st.selectbox("Seleccionar Producto / Insumo a Vender", df["opcion_display"].tolist(), key="select_venta_std")
+        
+        match_v = df[df["opcion_display"] == producto_venta]
+        if not match_v.empty:
+            p_data = match_v.iloc[0]
+            stock_disponible = int(p_data["stock_actual"]) if pd.notna(p_data["stock_actual"]) else 0
+            precio_registrado = float(p_data["precio_venta"]) if pd.notna(p_data["precio_venta"]) else 0.0
+            
+            col_info1, col_info2, col_info3 = st.columns(3)
+            col_info1.metric("📦 ID de Ítem", str(p_data["id_item"]))
+            col_info2.metric("🌱 Stock Disponible", f"{stock_disponible} un.")
+            col_info3.metric("💲 Precio Sugerido", f"${precio_registrado:,.2f}")
+            
+            st.markdown("---")
+            with st.form("form_registrar_venta_std"):
+                cant_a_vender = st.number_input("Cantidad a vender", min_value=1, max_value=max(1, stock_disponible), value=1, step=1)
+                precio_cobrado = st.number_input("Precio unitario de venta ($) [Editable]", min_value=0.0, value=precio_registrado, step=10.0)
+                cliente = st.text_input("Cliente (Opcional)", value="General")
+                
+                completar_venta_btn = st.form_submit_button("✅ Confirmar Venta y Descontar Stock")
+                
+                if completar_venta_btn:
+                    if cant_a_vender > stock_disponible:
+                        st.error("No hay suficiente stock para realizar esta venta.")
+                    else:
+                        try:
+                            nuevo_stock = stock_disponible - cant_a_vender
+                            total_venta = cant_a_vender * precio_cobrado
+                            fecha_hora_actual = (datetime.now() - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
+                            
+                            supabase.table("inventario").update({"stock_actual": nuevo_stock}).eq("id_item", str(p_data["id_item"])).execute()
+                            
+                            venta_registro = {
+                                "id_item": str(p_data["id_item"]),
+                                "producto": str(p_data["producto"]),
+                                "cantidad": cant_a_vender,
+                                "precio_unitario": precio_cobrado,
+                                "total": total_venta,
+                                "cliente": cliente.strip(),
+                                "fecha": fecha_hora_actual
+                            }
+                            supabase.table("ventas").insert(venta_registro).execute()
+                            
+                            st.success(f"¡Venta registrada con éxito! Total: ${total_venta:,.2f}. Stock actualizado.")
+                            
+                            st.markdown("### 🧾 Comprobante / Ticket Digital")
+                            ticket_txt = f"🌿 *EL BOTÁNICO - TICKET DE VENTA*\n📅 Fecha: {fecha_hora_actual}\n👤 Cliente: {cliente.strip()}\n--------------------------------\n🌱 Producto: {p_data['producto']} ({p_data['contenedor']})\n🔢 Cantidad: {cant_a_vender}\n💲 Precio Unit.: ${precio_cobrado:,.2f}\n💰 *TOTAL: ${total_venta:,.2f}*\n--------------------------------\n¡Gracias por tu compra!"
+                            st.code(ticket_txt, language="markdown")
+                        except Exception as e:
+                            st.error(f"Error al procesar la venta: {e}")
+
 with tab_precios:
     st.header("🏷️ Módulo de Actualización de Precios")
     st.markdown("Modificá de forma directa el Costo Unitario y el Precio de Venta de cualquier producto.")
@@ -524,6 +392,139 @@ with tab_precios:
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error al actualizar precios: {e}")
+
+with tab_ventas_2:
+    st.header("🛒 Registro de Ventas - Historial y Anulaciones")
+    st.markdown("Consultá el historial de ventas, facturación total y corregí anulando ventas mal cargadas.")
+
+    sub_tab_rapido, sub_tab_hist = st.tabs(["⚡ Accesos Directos (Mostrador Flash)", "📋 Historial & Anulaciones"])
+
+    with sub_tab_rapido:
+        st.markdown("### ⚡ Botones Rápidos para Mostrador")
+        st.markdown("Hacé clic en cualquiera de los productos destacados para vender 1 unidad al precio sugerido al instante.")
+        
+        if df.empty:
+            st.warning("No hay inventario cargado.")
+        else:
+            df_con_stock = df[df["stock_actual"] > 0].head(6)
+            if df_con_stock.empty:
+                st.info("No hay productos con stock disponible para botones rápidos.")
+            else:
+                cols_flash = st.columns(3)
+                for idx, row in df_con_stock.iterrows():
+                    col_target = cols_flash[idx % 3]
+                    with col_target:
+                        btn_label = f"🌿 {row['producto']}\n({row['contenedor']})\n💲 ${float(row['precio_venta']):,.2f}"
+                        if st.button(btn_label, key=f"flash_{row['id_item']}", use_container_width=True):
+                            try:
+                                stock_actual_flash = int(row["stock_actual"])
+                                nuevo_stock_flash = stock_actual_flash - 1
+                                precio_f = float(row["precio_venta"])
+                                fecha_flash = (datetime.now() - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
+                                
+                                supabase.table("inventario").update({"stock_actual": nuevo_stock_flash}).eq("id_item", str(row["id_item"])).execute()
+                                
+                                reg_flash = {
+                                    "id_item": str(row["id_item"]),
+                                    "producto": str(row["producto"]),
+                                    "cantidad": 1,
+                                    "precio_unitario": precio_f,
+                                    "total": precio_f,
+                                    "cliente": "General",
+                                    "fecha": fecha_flash
+                                }
+                                supabase.table("ventas").insert(reg_flash).execute()
+                                st.success(f"¡Venta flash de 1 {row['producto']} registrada! ($ {precio_f:,.2f})")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error en venta flash: {e}")
+
+    with sub_tab_hist:
+        st.markdown("### 📈 Historial Completo y Anulación de Ventas")
+        try:
+            resp_ventas = supabase.table("ventas").select("*").execute()
+            df_ventas_hist = pd.DataFrame(resp_ventas.data)
+            
+            if not df_ventas_hist.empty:
+                total_facturado = pd.to_numeric(df_ventas_hist["total"], errors="coerce").sum()
+                total_unidades = pd.to_numeric(df_ventas_hist["cantidad"], errors="coerce").sum()
+                cantidad_transacciones = len(df_ventas_hist)
+
+                col_1, col_2, col_3 = st.columns(3)
+                col_1.metric(label="Facturación Total Acumulada", value=f"${total_facturado:,.2f}")
+                col_2.metric(label="Unidades Vendidas Totales", value=f"{total_unidades:,}")
+                col_3.metric(label="Cantidad de Ventas", value=f"{cantidad_transacciones}")
+
+                st.markdown("---")
+                st.dataframe(df_ventas_hist, use_container_width=True)
+                
+                st.markdown("### ❌ Anular / Eliminar Venta Mal Cargada")
+                df_ventas_hist["display_venta"] = "ID Venta: " + df_ventas_hist["id"].astype(str) + " | Fecha: " + df_ventas_hist["fecha"].astype(str) + " | Prod: " + df_ventas_hist["producto"].astype(str) + " (" + df_ventas_hist["cantidad"].astype(str) + " un. - $" + df_ventas_hist["total"].astype(str) + ")"
+                
+                venta_a_anular = st.selectbox("Seleccionar venta a anular", df_ventas_hist["display_venta"].tolist(), key="select_anular_2")
+                
+                match_anular = df_ventas_hist[df_ventas_hist["display_venta"] == venta_a_anular]
+                if not match_anular.empty:
+                    v_sel = match_anular.iloc[0]
+                    
+                    st.warning(f"⚠️ Vas a eliminar la venta del producto **{v_sel['producto']}** ({v_sel['cantidad']} unidades) por un total de **${v_sel['total']}**. Esta acción devolverá las unidades al stock.")
+                    conf_anular = st.checkbox("Confirmo que deseo anular esta venta y reponer el stock", key="chk_anular_2")
+                    
+                    if st.button("🗑️ Anular Venta Seleccionada", type="primary", key="btn_anular_2"):
+                        if conf_anular:
+                            try:
+                                id_venta_db = v_sel["id"]
+                                id_item_afectado = v_sel["id_item"]
+                                cant_devuelta = int(v_sel["cantidad"])
+                                
+                                resp_inv_prod = supabase.table("inventario").select("stock_actual").eq("id_item", str(id_item_afectado)).execute()
+                                if resp_inv_prod.data:
+                                    stock_actual_inv = int(resp_inv_prod.data[0]["stock_actual"])
+                                    nuevo_stock_restituido = stock_actual_inv + cant_devuelta
+                                    
+                                    supabase.table("inventario").update({"stock_actual": nuevo_stock_restituido}).eq("id_item", str(id_item_afectado)).execute()
+                                
+                                supabase.table("ventas").delete().eq("id", id_venta_db).execute()
+                                
+                                st.success("¡Venta anulada con éxito y stock repuesto correctamente!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al anular la venta: {e}")
+                        else:
+                            st.error("Debes tildar la casilla de confirmación.")
+            else:
+                st.info("Todavía no hay ventas registradas en Supabase.")
+        except Exception as e:
+            st.warning(f"No se pudo cargar el historial de ventas: {e}")
+
+with tab_reportes:
+    st.header("📈 Reportes y Estadísticas de Vivero")
+    st.markdown("Análisis visual del rendimiento comercial y rotación de productos.")
+    
+    try:
+        resp_v_rep = supabase.table("ventas").select("*").execute()
+        df_rep = pd.DataFrame(resp_v_rep.data)
+        
+        if not df_rep.empty:
+            df_rep["total"] = pd.to_numeric(df_rep["total"], errors="coerce").fillna(0)
+            df_rep["cantidad"] = pd.to_numeric(df_rep["cantidad"], errors="coerce").fillna(0)
+            
+            col_r1, col_r2 = st.columns(2)
+            with col_r1:
+                st.subheader("🏆 Productos más vendidos (Unidades)")
+                top_productos = df_rep.groupby("producto")["cantidad"].sum().reset_index()
+                top_productos = top_productos.sort_values(by="cantidad", ascending=False).set_index("producto")
+                st.bar_chart(top_productos)
+                
+            with col_r2:
+                st.subheader("💰 Facturación por Producto ($)")
+                top_facturacion = df_rep.groupby("producto")["total"].sum().reset_index()
+                top_facturacion = top_facturacion.sort_values(by="total", ascending=False).set_index("producto")
+                st.bar_chart(top_facturacion)
+        else:
+            st.info("Registrá algunas ventas para visualizar los gráficos estadísticos aquí.")
+    except Exception as e:
+        st.warning(f"No se pudieron cargar los reportes gráficos: {e}")
 
 with tab_config:
     st.header("⚙️ Módulo de Configuración General")
