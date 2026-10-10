@@ -285,7 +285,6 @@ with tab_ventas:
                 st.markdown("### ❌ Anular / Eliminar Venta Mal Cargada")
                 st.markdown("Seleccioná la venta por su identificador en la base de datos para borrarla y reponer automáticamente el stock.")
                 
-                # Crear opciones claras para elegir la venta a borrar
                 df_ventas_hist["display_venta"] = "ID Venta: " + df_ventas_hist["id"].astype(str) + " | Fecha: " + df_ventas_hist["fecha"].astype(str) + " | Prod: " + df_ventas_hist["producto"].astype(str) + " (" + df_ventas_hist["cantidad"].astype(str) + " un. - $" + df_ventas_hist["total"].astype(str) + ")"
                 
                 venta_a_anular = st.selectbox("Seleccionar venta a anular", df_ventas_hist["display_venta"].tolist())
@@ -304,16 +303,13 @@ with tab_ventas:
                                 id_item_afectado = v_sel["id_item"]
                                 cant_devuelta = int(v_sel["cantidad"])
                                 
-                                # 1. Buscar stock actual del producto en inventario para sumarle lo devuelto
                                 resp_inv_prod = supabase.table("inventario").select("stock_actual").eq("id_item", str(id_item_afectado)).execute()
                                 if resp_inv_prod.data:
                                     stock_actual_inv = int(resp_inv_prod.data[0]["stock_actual"])
                                     nuevo_stock_restituido = stock_actual_inv + cant_devuelta
                                     
-                                    # Actualizar inventario devolviendo el stock
                                     supabase.table("inventario").update({"stock_actual": nuevo_stock_restituido}).eq("id_item", str(id_item_afectado)).execute()
                                 
-                                # 2. Eliminar el registro de la tabla ventas
                                 supabase.table("ventas").delete().eq("id", id_venta_db).execute()
                                 
                                 st.success("¡Venta anulada con éxito y stock repuesto correctamente!")
@@ -370,6 +366,10 @@ with tab_stock:
             "⚠️ Reiniciar Inventario"
         ])
         
+        # Definir tabla resumida auxiliar para mostrar debajo de cada sub-pestaña
+        cols_tabla_stock = [c for c in ["id_item", "familia", "producto", "contenedor", "stock_actual"] if c in df.columns]
+        df_resumen_stock = df[cols_tabla_stock]
+
         with sub_tab_act:
             prod_stock_elegido = st.selectbox("Seleccionar Producto para actualizar stock", df["opcion_display"].tolist(), key="select_stock_tab")
             match_s = df[df["opcion_display"] == prod_stock_elegido]
@@ -388,6 +388,10 @@ with tab_stock:
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error al actualizar: {e}")
+            
+            st.markdown("---")
+            st.subheader("📋 Estado Actual del Inventario y Stock")
+            st.dataframe(df_resumen_stock, use_container_width=True)
 
         with sub_tab_alta:
             st.markdown("### ➕ Registrar Nuevo Producto (ID autogenerado)")
@@ -437,6 +441,10 @@ with tab_stock:
                     else:
                         st.error("Los campos 'Familia', 'Categoría' y 'Producto' son obligatorios.")
 
+            st.markdown("---")
+            st.subheader("📋 Estado Actual del Inventario y Stock")
+            st.dataframe(df_resumen_stock, use_container_width=True)
+
         with sub_tab_del:
             prod_del_elegido = st.selectbox("Seleccionar Producto para eliminar", df["opcion_display"].tolist(), key="select_del_tab")
             match_d = df[df["opcion_display"] == prod_del_elegido]
@@ -456,6 +464,10 @@ with tab_stock:
                     else:
                         st.error("Debes tildar la casilla de confirmación.")
 
+            st.markdown("---")
+            st.subheader("📋 Estado Actual del Inventario y Stock")
+            st.dataframe(df_resumen_stock, use_container_width=True)
+
         with sub_tab_res:
             st.warning("⚠️ **Atención:** Esto pondrá el **Stock en 0**, Costo en $0.0 y Precio en $0.0 para **todos** los productos.")
             conf_res = st.checkbox("Confirmo que quiero reiniciar todo el inventario a cero", key="chk_res_tab")
@@ -474,6 +486,10 @@ with tab_stock:
                         st.error(f"Error: {e}")
                 else:
                     st.error("Debes tildar la casilla de confirmación.")
+
+            st.markdown("---")
+            st.subheader("📋 Estado Actual del Inventario y Stock")
+            st.dataframe(df_resumen_stock, use_container_width=True)
 
 with tab_precios:
     st.header("🏷️ Módulo de Actualización de Precios")
