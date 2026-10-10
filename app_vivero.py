@@ -90,10 +90,10 @@ with tab_inv:
                     return 'background-color: #fff3cd; color: #856404;' # Amarillo bajo
             return ''
 
-        # Aplicar formato condicional si la columna stock_actual está visible
+        # Aplicar formato condicional si la columna stock_actual está visible (usando .map en lugar de applymap)
         if "stock_actual" in df_tabla_mostrar.columns:
             st.dataframe(
-                df_tabla_mostrar.style.applymap(color_stock, subset=['stock_actual']), 
+                df_tabla_mostrar.style.map(color_stock, subset=['stock_actual']), 
                 use_container_width=True, 
                 key="tabla_inventario_general"
             )
@@ -159,7 +159,6 @@ with tab_ventas:
                                 
                                 st.success(f"¡Venta registrada con éxito! Total: ${total_venta:,.2f}. Stock actualizado.")
                                 
-                                # Mostrar Ticket Digital generado para WhatsApp
                                 st.markdown("### 🧾 Comprobante / Ticket Digital")
                                 ticket_txt = f"🌿 *EL BOTÁNICO - TICKET DE VENTA*\n📅 Fecha: {fecha_hora_actual}\n👤 Cliente: {cliente.strip()}\n--------------------------------\n🌱 Producto: {p_data['producto']} ({p_data['contenedor']})\n🔢 Cantidad: {cant_a_vender}\n💲 Precio Unit.: ${precio_cobrado:,.2f}\n💰 *TOTAL: ${total_venta:,.2f}*\n--------------------------------\n¡Gracias por tu compra!"
                                 st.code(ticket_txt, language="markdown")
@@ -173,7 +172,6 @@ with tab_ventas:
         if df.empty:
             st.warning("No hay inventario cargado.")
         else:
-            # Tomar los primeros 6 productos con stock disponible para los botones rápidos
             df_con_stock = df[df["stock_actual"] > 0].head(6)
             if df_con_stock.empty:
                 st.info("No hay productos con stock disponible para botones rápidos.")
