@@ -56,12 +56,17 @@ if menu == "Inventario General":
 
 elif menu == "Control de Stock":
     st.header("📊 Control de Stock, Altas y Gestión de Ítems")
-    st.markdown("Administrá el stock actual, creá nuevos productos o da de baja ítems erróneos.")
+    st.markdown("Administrá el stock actual, creá nuevos productos, da de baja ítems o blanqueá los valores a cero.")
     
     if df.empty:
         st.warning("No hay productos disponibles en la base de datos.")
     else:
-        tab_actualizar, tab_crear, tab_eliminar = st.tabs(["🔄 Actualizar Stock", "➕ Nuevo Ítem", "🗑️ Eliminar Ítem"])
+        tab_actualizar, tab_crear, tab_eliminar, tab_reset = st.tabs([
+            "🔄 Actualizar Stock", 
+            "➕ Nuevo Ítem", 
+            "🗑️ Eliminar Ítem", 
+            "⚠️ Reiniciar Inventario (A Cero)"
+        ])
         
         with tab_actualizar:
             df["opcion_display"] = df["id_item"].astype(str) + " - " + df["producto"].astype(str) + " (" + df["contenedor"].astype(str) + ")"
@@ -121,7 +126,9 @@ elif menu == "Control de Stock":
                                 "subcategoria": subcategoria.strip(),
                                 "producto": producto.strip().upper(),
                                 "contenedor": contenedor.strip().upper(),
-                                "stock_actual": stock_actual
+                                "stock_actual": stock_actual,
+                                "costo_unitario": 0.0,
+                                "precio_venta": 0.0
                             }
                             supabase.table("inventario").insert(nuevo_registro).execute()
                             st.success(f"¡El producto '{producto}' fue creado con éxito!")
@@ -151,6 +158,27 @@ elif menu == "Control de Stock":
                             st.error(f"Error al eliminar: {e}")
                     else:
                         st.error("Debes tildar la casilla de confirmación.")
+
+        with tab_reset:
+            st.warning("⚠️ **Atención:** Esta acción pondrá el **Stock en 0**, el **Costo Unitario en $0.0** y el **Precio de Venta en $0.0** para **todos** los productos registrados en la base de datos.")
+            confirmar_reset = st.checkbox("Confirmo que quiero reiniciar todo el inventario a cero")
+            
+            if st.button("🔄 Blanquear Todo el Inventario a 0", type="primary"):
+                if confirmar_reset:
+                    try:
+                        # Actualizar todos los registros de la tabla inventario
+                        supabase.table("inventario").update({
+                            "stock_actual": 0,
+                            "costo_unitario": 0.0,
+                            "precio_venta": 0.0
+                        }).neq("id_item", "ESTO_ES_UN_FILTRO_FALTO_QUE_APLICA_A_TODOS").execute()
+                        
+                        st.success("¡Todo el inventario fue reiniciado a cero con éxito!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al reiniciar el inventario: {e}")
+                else:
+                    st.error("Debes tildar la casilla de confirmación para ejecutar el reinicio.")
 
 elif menu == "Registro de Ventas":
     st.header("🛒 Módulo de Registro de Ventas")
@@ -188,8 +216,6 @@ elif menu == "Registro de Ventas":
                             try:
                                 nuevo_stock = stock_disponible - cant_a_vender
                                 total_venta = cant_a_vender * precio_cobrado
-                                
-                                # Capturar fecha y hora exacta del sistema de manera automática
                                 fecha_hora_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                 
                                 supabase.table("inventario").update({"stock_actual": nuevo_stock}).eq("id_item", str(p_data["id_item"])).execute()
