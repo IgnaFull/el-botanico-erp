@@ -44,7 +44,7 @@ if not df.empty:
         if row['precio_venta'] > 0 else "0.0%", axis=1
     )
     
-    # Columna combinada para mostrar ID, Producto y Contenedor de forma clara
+    # Columna combinada interna para los selectores
     df["opcion_display"] = df["id_item"].astype(str) + " - " + df["producto"].astype(str) + " (" + df["contenedor"].astype(str) + ")"
 
 # --- PESTAÑAS SUPERIORES TIPO NAVEGADOR ---
@@ -74,9 +74,15 @@ with tab_inv:
                 df_filtrado.astype(str).apply(lambda x: x.str.contains(busqueda, case=False)).any(axis=1)
             ]
             
+        # Ocultar la columna interna 'opcion_display' para que no aparezca en la tabla visual
+        if "opcion_display" in df_filtrado.columns:
+            df_tabla_mostrar = df_filtrado.drop(columns=["opcion_display"])
+        else:
+            df_tabla_mostrar = df_filtrado
+
         # Tabla interactiva con selección de filas habilitada
         evento_seleccion = st.dataframe(
-            df_filtrado, 
+            df_tabla_mostrar, 
             use_container_width=True, 
             selection_mode="single-row", 
             on_select="rerun",
@@ -87,10 +93,10 @@ with tab_inv:
         filas_seleccionadas = evento_seleccion.selection.rows if hasattr(evento_seleccion, 'selection') else []
         if filas_seleccionadas:
             idx = filas_seleccionadas[0]
-            prod_sel = df_filtrado.iloc[idx]
+            prod_sel = df_tabla_mostrar.iloc[idx]
             st.success(f"📌 **Producto seleccionado en tabla:** {prod_sel['producto']} (ID: `{prod_sel['id_item']}`) | Stock actual: **{prod_sel['stock_actual']} un.** | Precio Venta: **${float(prod_sel['precio_venta']):,.2f}**")
 
-        st.info(f"Total de registros mostrados: {len(df_filtrado)}")
+        st.info(f"Total de registros mostrados: {len(df_tabla_mostrar)}")
     else:
         st.warning("La tabla de inventario se encuentra vacía o faltan columnas.")
 
@@ -104,7 +110,6 @@ with tab_ventas:
         if df.empty:
             st.warning("No hay productos disponibles en el inventario para vender.")
         else:
-            # Selector claro y directo de productos
             producto_venta = st.selectbox("Seleccionar Producto / Insumo a Vender", df["opcion_display"].tolist(), key="select_venta_tab")
             
             match_v = df[df["opcion_display"] == producto_venta]
@@ -113,7 +118,6 @@ with tab_ventas:
                 stock_disponible = int(p_data["stock_actual"]) if pd.notna(p_data["stock_actual"]) else 0
                 precio_registrado = float(p_data["precio_venta"]) if pd.notna(p_data["precio_venta"]) else 0.0
                 
-                # Tarjeta visual resumida del ítem elegido
                 col_info1, col_info2, col_info3 = st.columns(3)
                 col_info1.metric("📦 ID de Ítem", str(p_data["id_item"]))
                 col_info2.metric("🌱 Stock Disponible", f"{stock_disponible} un.")
