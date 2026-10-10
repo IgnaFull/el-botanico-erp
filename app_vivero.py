@@ -32,9 +32,24 @@ df = cargar_datos()
 
 if menu == "Inventario General":
     st.header("📦 Inventario General de Plantas e Insumos")
-    st.markdown("Consulta en tiempo real de todos los productos cargados en la base de datos.")
+    st.markdown("Consulta en tiempo real de todos los productos cargados, costos, precios y margen neto.")
     
     if not df.empty and "familia" in df.columns:
+        if "costo_unitario" not in df.columns:
+            df["costo_unitario"] = 0.0
+        if "precio_venta" not in df.columns:
+            df["precio_venta"] = 0.0
+            
+        df["costo_unitario"] = pd.to_numeric(df["costo_unitario"], errors="coerce").fillna(0.0)
+        df["precio_venta"] = pd.to_numeric(df["precio_venta"], errors="coerce").fillna(0.0)
+        
+        # Calcular Margen Neto
+        df["margen_neto"] = df["precio_venta"] - df["costo_unitario"]
+        df["margen_pct"] = df.apply(
+            lambda row: f"{((row['precio_venta'] - row['costo_unitario']) / row['precio_venta'] * 100):.1f}%" 
+            if row['precio_venta'] > 0 else "0.0%", axis=1
+        )
+
         familias = ["Todas"] + list(df["familia"].dropna().unique())
         familia_seleccionada = st.selectbox("Filtrar por Familia", familias)
         
@@ -166,7 +181,6 @@ elif menu == "Control de Stock":
             if st.button("🔄 Blanquear Todo el Inventario a 0", type="primary"):
                 if confirmar_reset:
                     try:
-                        # Actualizar todos los registros de la tabla inventario
                         supabase.table("inventario").update({
                             "stock_actual": 0,
                             "costo_unitario": 0.0,
@@ -198,13 +212,16 @@ elif menu == "Registro de Ventas":
                 p_data = match_v.iloc[0]
                 stock_disponible = int(p_data["stock_actual"]) if pd.notna(p_data["stock_actual"]) else 0
                 
-                st.info(f"Stock disponible actualmente: **{stock_disponible} unidades**")
+                # Obtener el precio de venta cargado en el inventario para traerlo por defecto
+                precio_registrado = float(p_data["precio_venta"]) if "precio_venta" in p_data and pd.notna(p_data["precio_venta"]) else 0.0
+                
+                st.info(f"Stock disponible actualmente: **{stock_disponible} unidades** | Precio oficial sugerido: **${precio_registrado:,.2f}**")
                 
                 with st.form("form_registrar_venta"):
                     cant_a_vender = st.number_input("Cantidad a vender", min_value=1, max_value=max(1, stock_disponible), value=1, step=1)
                     
-                    precio_sugerido = float(p_data["precio_venta"]) if "precio_venta" in p_data and pd.notna(p_data["precio_venta"]) else 0.0
-                    precio_cobrado = st.number_input("Precio unitario de venta ($)", min_value=0.0, value=precio_sugerido, step=10.0)
+                    # El campo se completa automáticamente con el precio de venta de la base y se puede editar manualmente
+                    precio_cobrado = st.number_input("Precio unitario de venta ($) [Editable]", min_value=0.0, value=precio_registrado, step=10.0)
                     cliente = st.text_input("Cliente (Opcional)", value="General")
                     
                     completar_venta_btn = st.form_submit_button("✅ Confirmar Venta y Descontar Stock")
@@ -216,8 +233,8 @@ elif menu == "Registro de Ventas":
                             try:
                                 nuevo_stock = stock_disponible - cant_a_vender
                                 total_venta = cant_a_vender * precio_cobrado
+                                
                                 from datetime import timedelta
-                                # Ajustar restando 3 horas para la hora local de Argentina (UTC-3)
                                 fecha_hora_actual = (datetime.now() - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
                                 
                                 supabase.table("inventario").update({"stock_actual": nuevo_stock}).eq("id_item", str(p_data["id_item"])).execute()
