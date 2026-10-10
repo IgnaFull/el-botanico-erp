@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
 from supabase import create_client, Client
 
 # Configuración de credenciales de Supabase
@@ -11,7 +12,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 st.set_page_config(page_title="El Botánico - ERP", page_icon="🌱", layout="wide")
 
 st.sidebar.title("🌿 El Botánico")
-menu = st.sidebar.radio("Navegación", ["Inventario General", "Control de Stock"])
+menu = st.sidebar.radio("Navegación", ["Inventario General", "Control de Stock", "Registro y Ventas"])
 
 # Cargar datos desde Supabase
 def cargar_datos():
@@ -145,3 +146,136 @@ elif menu == "Control de Stock":
                             st.error(f"Error al eliminar: {e}")
                     else:
                         st.error("Debes tildar la casilla de confirmación.")
+
+elif menu == "Registro y Ventas":
+    st.header("🛒 Gestión de Ventas, Precios e Historial")
+    st.markdown("Registrá ventas con fecha y hora personalizada, consultá totales y actualizá costos o precios de venta.")
+
+    tab_registrar, tab_historial, tab_precios = st.tabs([
+        "💰 Registrar Nueva Venta", 
+        "📋 Historial y Totales", 
+        "⚙️ Actualizar Precios"
+    ])
+
+    with tab_registrar:
+        if df.empty:
+            st.warning("No hay productos disponibles en el inventario para vender.")
+        else:
+            df["opcion_display"] = df["id_item"].astype(str) + " - " + df["producto"].astype(str) + " (" + df["contenedor"].astype(str) + ")"
+            producto_venta = st.selectbox("Seleccionar Producto a Vender", df["opcion_display"].tolist(), key="select_venta")
+            
+            match_v = df[df["opcion_display"] == producto_venta]
+            if not match_v.empty:
+                p_data = match_v.iloc[0]
+                stock_disponible = int(p_data["stock_actual"]) if pd.notna(p_data["stock_actual"]) else 0
+                
+                st.info(f"Stock disponible actualmente: **{stock_disponible} unidades**")
+                
+                with st.form("form_registrar_venta"):
+                    col_f1, col_f2 = st.columns(2)
+                    with col_f1:
+                        fecha_venta = st.date_input("Fecha de la Venta", value=datetime.now().date())
+                    with col_f2:
+                        hora_venta = st.time_input("Hora de la Venta", value=datetime.now().time())
+                        
+                    cant_a_vender = st.number_input("Cantidad a vender", min_value=1, max_value=max(1, stock_disponible), value=1, step=1)
+                    
+                    # Asegurar que existan columnas de precios para evitar errores si están vacías
+                    precio_sugerido = float(p_data["precio_venta"]) if "precio_venta" in p_data and pd.notna(p_data["precio_venta"]) else 0.0
+                    precio_cobrado = st.number_input("Precio unitario de venta ($)", min_value=0.0, value=precio_sugerido, step=10.0)
+                    cliente = st.text_input("Cliente (Opcional)", value="General")
+                    
+                    completar_venta_btn = st.form_submit_button("✅ Confirmar Venta y Descontar Stock")
+                    
+                    if completar_venta_btn:
+                        if cant_a_vender > stock_disponible:
+                            st.error("No hay suficiente stock para realizar esta venta.")
+                        else:
+                            try:
+                                nuevo_stock = stock_disponible - cant_a_vender
+                                total_venta = cant_a_vender * precio_cobrado
+                                fecha_hora_completa = datetime.combine(fecha_venta, hora_venta).strftime("%Y-%m-%d %H:%M:%S")
+                                
+                                # 1. Actualizar stock en inventario
+                                supabase.table("inventario").update({"stock_actual": nuevo_stock}).eq("id_item", str(p_data["id_item"])).execute()
+                                
+                                # 2. Guardar en historial de ventas
+                                venta_registro = {
+                                    "id_item": str(p_data["id_item"]),
+                                    "producto": str(p_data["producto"]),
+                                    "cantidad": cant_a_vender,
+                                    "precio_unitario": precio_cobrado,
+                                    "total": total_venta,
+                                    "cliente": cliente.strip(),
+                                    "fecha": fecha_hora_completa
+                                }
+                                supabase.table("ventas").insert(venta_registro).execute()
+                                
+                                st.success(f"¡Venta registrada con éxito! Total: ${total_venta:,.2f}. Stock actualizado.")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al procesar la venta: {e}. Recordá tener creada la tabla 'ventas' en Supabase.")
+
+    with tab_historial:
+        st.markdown("### 📈 Historial Completo y Resumen de Facturación")
+        try:
+            resp_ventas = supabase.table("ventas").select("*").execute()
+            df_ventas = pd.DataFrame(resp_ventas.data)
+            
+            if not df_ventas.empty:
+                total_facturado = pd.to_numeric(df_ventas["total"], errors="coerce").sum()
+                total_unidades = pd.to_numeric(df_ventas["cantidad"], errors="coerce").sum()
+                cantidad_transacciones = len(df_ventas)
+
+                col_1, col_2, col_3 = st.columns(3)
+                with col_1:
+                    st.metric(label="Facturación Total Acumulada", value=f"${total_facturado:,.2f}")
+                with col_2:
+                    st.metric(label="Unidades Vendidas Totales", value=f"{total_unidades:,}")
+                with col_3:
+                    st.metric(label="Cantidad de Ventas", value=f"{cantidad_transacciones}")
+
+                st.markdown("---")
+                st.dataframe(df_ventas, use_container_width=True)
+            else:
+                st.info("Todavía no hay ventas registradas en Supabase.")
+        except Exception as e:
+            st.warning("No se pudo cargar el historial. Asegurate de tener creada la tabla 'ventas' en tu base de datos de Supabase.")
+
+    with tab_precios:
+        st.markdown("### 🏷️ Actualización Rápida de Costos y Precios de Venta")
+        if df.empty:
+            st.warning("No hay productos cargados en el inventario.")
+        else:
+            # Asegurarnos de tener columnas de costos/precios en el dataframe local
+            if "costo_unitario" not in df.columns:
+                df["costo_unitario"] = 0.0
+            if "precio_venta" not in df.columns:
+                df["precio_venta"] = 0.0
+
+            df["opcion_precio"] = df["id_item"].astype(str) + " - " + df["producto"].astype(str) + " (" + df["contenedor"].astype(str) + ")"
+            prod_precio_elegido = st.selectbox("Seleccionar producto para modificar precios", df["opcion_precio"].tolist(), key="select_mod_precio")
+            
+            match_p = df[df["opcion_precio"] == prod_precio_elegido]
+            if not match_p.empty:
+                p_item = match_p.iloc[0]
+                costo_actual = float(p_item["costo_unitario"]) if pd.notna(p_item["costo_unitario"]) else 0.0
+                precio_actual = float(p_item["precio_venta"]) if pd.notna(p_item["precio_venta"]) else 0.0
+                
+                with st.form("form_editar_precios"):
+                    nuevo_costo = st.number_input("Costo Unitario ($)", min_value=0.0, value=costo_actual, step=10.0)
+                    nuevo_precio_venta = st.number_input("Precio de Venta ($)", min_value=0.0, value=precio_actual, step=10.0)
+                    
+                    guardar_precios_btn = st.form_submit_button("💾 Guardar Nuevos Precios en Supabase")
+                    
+                    if guardar_precios_btn:
+                        try:
+                            supabase.table("inventario").update({
+                                "costo_unitario": nuevo_costo,
+                                "precio_venta": nuevo_precio_venta
+                            }).eq("id_item", str(p_item["id_item"])).execute()
+                            
+                            st.success("¡Precios actualizados con éxito en la base de datos!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error al actualizar los precios: {e}")
