@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import random
 from datetime import datetime, timedelta
 from supabase import create_client, Client
 
@@ -218,40 +219,53 @@ with tab_stock:
                             st.error(f"Error al actualizar: {e}")
 
         with sub_tab_alta:
-            st.markdown("### ➕ Registrar Nuevo Producto o Insumo")
+            st.markdown("### ➕ Registrar Nuevo Producto (ID autogenerado)")
             with st.form("form_alta_tab"):
                 col_a, col_b = st.columns(2)
                 with col_a:
-                    id_item = st.text_input("ID de Ítem (Ej: PL-SUC-999)")
-                    familia = st.text_input("Familia (Ej: PLANTAS, INSUMOS)")
-                    categoria = st.text_input("Categoría (Ej: SUCULENTAS Y CACTUS)")
-                    subcategoria = st.text_input("Subcategoría", value="-")
+                    familia = st.text_input("Familia (Ej: PLANTA, INSUMO)")
+                    categoria = st.text_input("Categoría (Ej: SUCULENTA, MACETA)")
                 with col_b:
-                    producto = st.text_input("Producto / Especie / Modelo")
+                    subcategoria = st.text_input("Subcategoría (Ej: COLGANTE, 3L)", value="GEN")
                     contenedor = st.text_input("Contenedor / Medida (Ej: M15, 5L)")
+                
+                st.markdown("---")
+                col_c, col_d = st.columns(2)
+                with col_c:
+                    producto = st.text_input("Producto / Especie / Modelo (Ej: MONSTERA)")
+                with col_d:
                     stock_actual = st.number_input("Stock Inicial", min_value=0, value=0, step=1)
                 
-                if st.form_submit_button("🚀 Dar de Alta en Supabase"):
-                    if id_item and producto:
+                if st.form_submit_button("🚀 Generar ID y Dar de Alta en Supabase"):
+                    if familia and categoria and producto:
                         try:
+                            # Autogenerar ID único basado en las iniciales de Familia, Categoría, Subcategoría y Contenedor + Número aleatorio
+                            f_code = familia.strip()[:3].upper()
+                            c_code = categoria.strip()[:3].upper()
+                            s_code = subcategoria.strip()[:3].upper()
+                            cnt_code = contenedor.strip()[:3].upper() if contenedor else "GEN"
+                            rand_num = random.randint(100, 999)
+                            
+                            id_generado = f"{f_code}-{c_code}-{s_code}-{cnt_code}-{rand_num}"
+                            
                             nuevo_reg = {
-                                "id_item": id_item.strip().upper(),
+                                "id_item": id_generado,
                                 "familia": familia.strip().upper(),
                                 "categoria": categoria.strip().upper(),
-                                "subcategoria": subcategoria.strip(),
+                                "subcategoria": subcategoria.strip().upper(),
                                 "producto": producto.strip().upper(),
-                                "contenedor": contenedor.strip().upper(),
+                                "contenedor": contenedor.strip().upper() if contenedor else "-",
                                 "stock_actual": stock_actual,
                                 "costo_unitario": 0.0,
                                 "precio_venta": 0.0
                             }
                             supabase.table("inventario").insert(nuevo_reg).execute()
-                            st.success(f"¡El producto '{producto}' fue creado con éxito!")
+                            st.success(f"¡Producto creado con éxito! ID asignado automáticamente: `{id_generado}`")
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error al registrar: {e}")
                     else:
-                        st.error("Los campos 'ID de Ítem' y 'Producto' son obligatorios.")
+                        st.error("Los campos 'Familia', 'Categoría' y 'Producto' son obligatorios.")
 
         with sub_tab_del:
             prod_del_elegido = st.selectbox("Seleccionar Producto para eliminar", df["opcion_display"].tolist(), key="select_del_tab")
@@ -355,7 +369,6 @@ with tab_config:
     )
     
     if "Modo Claro" in tema_seleccionado:
-        # Estilos limpios y profesionales usando variables nativas para el modo claro
         st.markdown(
             """
             <style>
