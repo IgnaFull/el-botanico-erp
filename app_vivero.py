@@ -34,20 +34,17 @@ if not df.empty:
     df["costo_unitario"] = pd.to_numeric(df["costo_unitario"], errors="coerce").fillna(0.0)
     df["precio_venta"] = pd.to_numeric(df["precio_venta"], errors="coerce").fillna(0.0)
     
-    # Calcular Margen Neto ($ y %)
+    # Calcular Margen Neto ($)
     df["margen_neto"] = df["precio_venta"] - df["costo_unitario"]
-    df["margen_pct"] = df.apply(
-        lambda row: f"{((row['precio_venta'] - row['costo_unitario']) / row['precio_venta'] * 100):.1f}%" 
-        if row['precio_venta'] > 0 else "0.0%", axis=1
-    )
     
     # Columna combinada interna para los selectores
     df["opcion_display"] = df["id_item"].astype(str) + " - " + df["producto"].astype(str) + " (" + df["contenedor"].astype(str) + ")"
 
 # --- PESTAÑAS SUPERIORES TIPO NAVEGADOR ---
-tab_inv, tab_ventas, tab_stock, tab_precios, tab_config = st.tabs([
+tab_inv, tab_ventas, tab_reportes, tab_stock, tab_precios, tab_config = st.tabs([
     "📦 Inventario General", 
     "🛒 Registro de Ventas", 
+    "📊 Reportes & Estadísticas",
     "📊 Control de Stock", 
     "🏷️ Actualizar Precios",
     "⚙️ Configuración"
@@ -55,7 +52,7 @@ tab_inv, tab_ventas, tab_stock, tab_precios, tab_config = st.tabs([
 
 with tab_inv:
     st.header("📦 Inventario General y Stock en Tiempo Real")
-    st.markdown("Consulta general de plantas, insumos, costos, precios y márgenes de ganancia.")
+    st.markdown("Consulta general con semáforo de stock (🔴 Crítico ≤ 3 | 🟡 Bajo ≤ 10 | 🟢 Normal).")
     
     if not df.empty and "familia" in df.columns:
         familias = ["Todas"] + list(df["familia"].dropna().unique())
@@ -80,35 +77,38 @@ with tab_inv:
         cols_validas = [c for c in cols_a_mostrar if c in df_filtrado.columns]
         
         if cols_validas:
-            df_tabla_mostrar = df_filtrado[cols_validas]
+            df_tabla_mostrar = df_filtrado[cols_validas].copy()
         else:
-            df_tabla_mostrar = df_filtrado
+            df_tabla_mostrar = df_filtrado.copy()
 
-        # Tabla interactiva con selección de filas habilitada
-        evento_seleccion = st.dataframe(
-            df_tabla_mostrar, 
-            use_container_width=True, 
-            selection_mode="single-row", 
-            on_select="rerun",
-            key="tabla_inventario_general"
-        )
-        
-        # Mostrar detalle instantáneo del producto seleccionado en la tabla
-        filas_seleccionadas = evento_seleccion.selection.rows if hasattr(evento_seleccion, 'selection') else []
-        if filas_seleccionadas:
-            idx = filas_seleccionadas[0]
-            prod_sel = df_filtrado.iloc[idx]
-            st.success(f"📌 **Producto seleccionado en tabla:** {prod_sel['producto']} (ID: `{prod_sel['id_item']}`) | Stock actual: **{prod_sel['stock_actual']} un.** | Precio Venta: **${float(prod_sel['precio_venta']):,.2f}**")
+        # Función de estilo para el semáforo de stock en la tabla
+        def color_stock(val):
+            if isinstance(val, (int, float)):
+                if val <= 3:
+                    return 'background-color: #ffcccc; color: #990000;' # Rojo crítico
+                elif val <= 10:
+                    return 'background-color: #fff3cd; color: #856404;' # Amarillo bajo
+            return ''
+
+        # Aplicar formato condicional si la columna stock_actual está visible
+        if "stock_actual" in df_tabla_mostrar.columns:
+            st.dataframe(
+                df_tabla_mostrar.style.applymap(color_stock, subset=['stock_actual']), 
+                use_container_width=True, 
+                key="tabla_inventario_general"
+            )
+        else:
+            st.dataframe(df_tabla_mostrar, use_container_width=True, key="tabla_inventario_general")
 
         st.info(f"Total de registros mostrados: {len(df_tabla_mostrar)}")
     else:
         st.warning("La tabla de inventario se encuentra vacía o faltan columnas.")
 
 with tab_ventas:
-    st.header("🛒 Módulo de Registro de Ventas")
-    st.markdown("Seleccioná un producto, verificá su precio y stock, y registrá la venta al instante.")
+    st.header("🛒 Módulo de Registro de Ventas & Mostrador")
+    st.markdown("Realizá ventas rápidas mediante buscador, panel de botones directos o consultá el historial.")
 
-    sub_tab_reg, sub_tab_hist = st.tabs(["💰 Realizar Venta", "📋 Historial y Facturación"])
+    sub_tab_reg, sub_tab_rapido, sub_tab_hist = st.tabs(["💰 Venta Estándar", "⚡ Accesos Directos (Mostrador)", "📋 Historial & Tickets"])
 
     with sub_tab_reg:
         if df.empty:
@@ -158,9 +158,54 @@ with tab_ventas:
                                 supabase.table("ventas").insert(venta_registro).execute()
                                 
                                 st.success(f"¡Venta registrada con éxito! Total: ${total_venta:,.2f}. Stock actualizado.")
+                                
+                                # Mostrar Ticket Digital generado para WhatsApp
+                                st.markdown("### 🧾 Comprobante / Ticket Digital")
+                                ticket_txt = f"🌿 *EL BOTÁNICO - TICKET DE VENTA*\n📅 Fecha: {fecha_hora_actual}\n👤 Cliente: {cliente.strip()}\n--------------------------------\n🌱 Producto: {p_data['producto']} ({p_data['contenedor']})\n🔢 Cantidad: {cant_a_vender}\n💲 Precio Unit.: ${precio_cobrado:,.2f}\n💰 *TOTAL: ${total_venta:,.2f}*\n--------------------------------\n¡Gracias por tu compra!"
+                                st.code(ticket_txt, language="markdown")
+                            except Exception as e:
+                                st.error(f"Error al procesar la venta: {e}")
+
+    with sub_tab_rapido:
+        st.markdown("### ⚡ Botones Rápidos para Mostrador (Venta Flash)")
+        st.markdown("Hacé clic en cualquiera de los productos destacados para vender 1 unidad al precio sugerido al instante.")
+        
+        if df.empty:
+            st.warning("No hay inventario cargado.")
+        else:
+            # Tomar los primeros 6 productos con stock disponible para los botones rápidos
+            df_con_stock = df[df["stock_actual"] > 0].head(6)
+            if df_con_stock.empty:
+                st.info("No hay productos con stock disponible para botones rápidos.")
+            else:
+                cols_flash = st.columns(3)
+                for idx, row in df_con_stock.iterrows():
+                    col_target = cols_flash[idx % 3]
+                    with col_target:
+                        btn_label = f"🌿 {row['producto']}\n({row['contenedor']})\n💲 ${float(row['precio_venta']):,.2f}"
+                        if st.button(btn_label, key=f"flash_{row['id_item']}", use_container_width=True):
+                            try:
+                                stock_actual_flash = int(row["stock_actual"])
+                                nuevo_stock_flash = stock_actual_flash - 1
+                                precio_f = float(row["precio_venta"])
+                                fecha_flash = (datetime.now() - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
+                                
+                                supabase.table("inventario").update({"stock_actual": nuevo_stock_flash}).eq("id_item", str(row["id_item"])).execute()
+                                
+                                reg_flash = {
+                                    "id_item": str(row["id_item"]),
+                                    "producto": str(row["producto"]),
+                                    "cantidad": 1,
+                                    "precio_unitario": precio_f,
+                                    "total": precio_f,
+                                    "cliente": "General",
+                                    "fecha": fecha_flash
+                                }
+                                supabase.table("ventas").insert(reg_flash).execute()
+                                st.success(f"¡Venta flash de 1 {row['producto']} registrada! ($ {precio_f:,.2f})")
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"Error al procesar la venta: {e}. Recordá tener creada la tabla 'ventas' en Supabase.")
+                                st.error(f"Error en venta flash: {e}")
 
     with sub_tab_hist:
         st.markdown("### 📈 Historial Completo y Resumen de Facturación")
@@ -184,6 +229,35 @@ with tab_ventas:
                 st.info("Todavía no hay ventas registradas en Supabase.")
         except Exception as e:
             st.warning("No se pudo cargar el historial. Asegurate de tener creada la tabla 'ventas' en Supabase.")
+
+with tab_reportes:
+    st.header("📊 Reportes y Estadísticas de Vivero")
+    st.markdown("Análisis visual del rendimiento comercial y rotación de productos.")
+    
+    try:
+        resp_v_rep = supabase.table("ventas").select("*").execute()
+        df_rep = pd.DataFrame(resp_v_rep.data)
+        
+        if not df_rep.empty:
+            df_rep["total"] = pd.to_numeric(df_rep["total"], errors="coerce").fillna(0)
+            df_rep["cantidad"] = pd.to_numeric(df_rep["cantidad"], errors="coerce").fillna(0)
+            
+            col_r1, col_r2 = st.columns(2)
+            with col_r1:
+                st.subheader("🏆 Productos más vendidos (Unidades)")
+                top_productos = df_rep.groupby("producto")["cantidad"].sum().reset_index()
+                top_productos = top_productos.sort_values(by="cantidad", ascending=False).set_index("producto")
+                st.bar_chart(top_productos)
+                
+            with col_r2:
+                st.subheader("💰 Facturación por Producto ($)")
+                top_facturacion = df_rep.groupby("producto")["total"].sum().reset_index()
+                top_facturacion = top_facturacion.sort_values(by="total", ascending=False).set_index("producto")
+                st.bar_chart(top_facturacion)
+        else:
+            st.info("Registrá algunas ventas para visualizar los gráficos estadísticos aquí.")
+    except Exception as e:
+        st.warning(f"No se pudieron cargar los reportes gráficos: {e}")
 
 with tab_stock:
     st.header("📊 Control de Stock, Altas y Gestión de Ítems")
@@ -239,7 +313,6 @@ with tab_stock:
                 if st.form_submit_button("🚀 Generar ID y Dar de Alta en Supabase"):
                     if familia and categoria and producto:
                         try:
-                            # Autogenerar ID único basado en las iniciales de Familia, Categoría, Subcategoría y Contenedor + Número aleatorio
                             f_code = familia.strip()[:3].upper()
                             c_code = categoria.strip()[:3].upper()
                             s_code = subcategoria.strip()[:3].upper()
