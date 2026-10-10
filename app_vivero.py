@@ -13,16 +13,24 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Configuración inicial de la página en ancho completo
 st.set_page_config(page_title="El Botánico - ERP", page_icon="🌱", layout="wide")
 
-# Cargar datos desde Supabase
-def cargar_datos():
+# Cargar datos desde Supabase (Inventario)
+def cargar_inventario():
     try:
         response = supabase.table("inventario").select("*").execute()
         return pd.DataFrame(response.data)
     except Exception as e:
-        st.error(f"Error al conectar con Supabase: {e}")
         return pd.DataFrame()
 
-df = cargar_datos()
+# Cargar datos desde Supabase (Ventas)
+def cargar_ventas():
+    try:
+        response = supabase.table("ventas").select("*").execute()
+        return pd.DataFrame(response.data)
+    except Exception as e:
+        return pd.DataFrame()
+
+df = cargar_inventario()
+df_ventas = cargar_ventas()
 
 # Asegurar columnas numéricas y cálculos de margen para el inventario
 if not df.empty:
@@ -40,15 +48,76 @@ if not df.empty:
     # Columna combinada interna para los selectores
     df["opcion_display"] = df["id_item"].astype(str) + " - " + df["producto"].astype(str) + " (" + df["contenedor"].astype(str) + ")"
 
-# --- PESTAÑAS SUPERIORES TIPO NAVEGADOR ---
-tab_inv, tab_ventas, tab_reportes, tab_stock, tab_precios, tab_config = st.tabs([
+# --- PESTAÑAS SUPERIORES TIPO NAVEGADOR (DASHBOARD PRIMERO) ---
+tab_dash, tab_inv, tab_ventas, tab_reportes, tab_stock, tab_precios, tab_config = st.tabs([
+    "📊 Dashboard",
     "📦 Inventario General", 
     "🛒 Registro de Ventas", 
-    "📊 Reportes & Estadísticas",
+    "📈 Reportes",
     "📊 Control de Stock", 
     "🏷️ Actualizar Precios",
     "⚙️ Configuración"
 ])
+
+with tab_dash:
+    st.header("📊 Dashboard General - El Botánico")
+    st.markdown("Indicadores clave en tiempo real sobre las finanzas, ventas y estado del stock.")
+    
+    # Procesar datos de ventas e inventario para KPIs
+    total_facturado = 0.0
+    ganancia_total = 0.0
+    unidades_vendidas = 0
+    ticket_promedio = 0.0
+    cant_transacciones = 0
+    stock_critico = 0
+    producto_estrella = "Ninguno"
+    
+    if not df_ventas.empty:
+        df_ventas["total"] = pd.to_numeric(df_ventas["total"], errors="coerce").fillna(0)
+        df_ventas["cantidad"] = pd.to_numeric(df_ventas["cantidad"], errors="coerce").fillna(0)
+        df_ventas["precio_unitario"] = pd.to_numeric(df_ventas["precio_unitario"], errors="coerce").fillna(0)
+        
+        total_facturado = df_ventas["total"].sum()
+        unidades_vendidas = int(df_ventas["cantidad"].sum())
+        cant_transacciones = len(df_ventas)
+        ticket_promedio = total_facturado / cant_transacciones if cant_transacciones > 0 else 0.0
+        
+        # Calcular ganancia neta estimada cruzando con los costos actuales del inventario
+        if not df.empty and "costo_unitario" in df.columns:
+            # Unir ventas con inventario para conocer el costo unitario de lo vendido
+            df_cruce = df_ventas.merge(df[["id_item", "costo_unitario"]], on="id_item", how="left")
+            df_cruce["costo_unitario"] = pd.to_numeric(df_cruce["costo_unitario"], errors="coerce").fillna(0)
+            ganancia_total = ((df_cruce["precio_unitario"] - df_cruce["costo_unitario"]) * df_cruce["cantidad"]).sum()
+            
+            # Producto estrella
+            top_prod = df_ventas.groupby("producto")["cantidad"].sum()
+            if not top_prod.empty:
+                producto_estrella = top_prod.idxmax()
+
+    if not df.empty and "stock_actual" in df.columns:
+        df["stock_actual"] = pd.to_numeric(df["stock_actual"], errors="coerce").fillna(0)
+        stock_critico = len(df[df["stock_actual"] <= 3])
+
+    # Fila 1 de Métricas Principales (KPIs)
+    col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
+    col_kpi1.metric(label="💰 Facturación Total", value=f"${total_facturado:,.2f}")
+    col_kpi2.metric(label="📈 Ganancia Neta Total", value=f"${ganancia_total:,.2f}")
+    col_kpi3.metric(label="🛒 Transacciones", value=f"{cant_transacciones}")
+    col_kpi4.metric(label="🌱 Unidades Vendidas", value=f"{unidades_vendidas}")
+
+    # Fila 2 de Métricas Secundarias
+    col_kpi5, col_kpi6, col_kpi7 = st.columns(3)
+    col_kpi5.metric(label="💵 Ticket Promedio por Venta", value=f"${ticket_promedio:,.2f}")
+    col_kpi6.metric(label="⭐ Producto Estrella", value=str(producto_estrella))
+    col_kpi7.metric(label="⚠️ Ítems en Stock Crítico (≤3)", value=f"{stock_critico} productos")
+
+    st.markdown("---")
+    
+    # Vista rápida de accesos / alertas
+    if stock_critico > 0:
+        st.warning(f"⚠️ **Atención:** Tenés {stock_critico} productos con stock crítico (menos de 3 unidades). Revisá la pestaña de Inventario o Control de Stock para reponer.")
+    else:
+        st.success("✅ ¡Todo el stock se encuentra en niveles normales o seguros!")
 
 with tab_inv:
     st.header("📦 Inventario General y Stock en Tiempo Real")
@@ -69,7 +138,6 @@ with tab_inv:
                 df_filtrado.astype(str).apply(lambda x: x.str.contains(busqueda, case=False)).any(axis=1)
             ]
             
-        # Aplicar las columnas seleccionadas en el módulo de Configuración
         columnas_disponibles = [col for col in df.columns if col != "opcion_display"]
         columnas_por_defecto = [c for c in ["id_item", "familia", "producto", "contenedor", "stock_actual", "precio_venta", "margen_neto"] if c in columnas_disponibles]
         
@@ -81,16 +149,14 @@ with tab_inv:
         else:
             df_tabla_mostrar = df_filtrado.copy()
 
-        # Función de estilo para el semáforo de stock en la tabla
         def color_stock(val):
             if isinstance(val, (int, float)):
                 if val <= 3:
-                    return 'background-color: #ffcccc; color: #990000;' # Rojo crítico
+                    return 'background-color: #ffcccc; color: #990000;'
                 elif val <= 10:
-                    return 'background-color: #fff3cd; color: #856404;' # Amarillo bajo
+                    return 'background-color: #fff3cd; color: #856404;'
             return ''
 
-        # Aplicar formato condicional si la columna stock_actual está visible (usando .map en lugar de applymap)
         if "stock_actual" in df_tabla_mostrar.columns:
             st.dataframe(
                 df_tabla_mostrar.style.map(color_stock, subset=['stock_actual']), 
@@ -226,7 +292,7 @@ with tab_ventas:
             else:
                 st.info("Todavía no hay ventas registradas en Supabase.")
         except Exception as e:
-            st.warning("No se pudo cargar el historial. Asegurate de tener creada la tabla 'ventas' en Supabase.")
+            st.warning("No se pudo cargar el historial.")
 
 with tab_reportes:
     st.header("📊 Reportes y Estadísticas de Vivero")
