@@ -48,7 +48,7 @@ if not df.empty:
     # Columna combinada interna para los selectores
     df["opcion_display"] = df["id_item"].astype(str) + " - " + df["producto"].astype(str) + " (" + df["contenedor"].astype(str) + ")"
 
-# --- PESTAÑAS SUPERIORES TIPO NAVEGADOR (DASHBOARD PRIMERO) ---
+# --- PESTAÑAS SUPERIORES TIPO NAVEGADOR ---
 tab_dash, tab_inv, tab_ventas, tab_reportes, tab_stock, tab_precios, tab_config = st.tabs([
     "📊 Dashboard",
     "📦 Inventario General", 
@@ -63,7 +63,6 @@ with tab_dash:
     st.header("📊 Dashboard General - El Botánico")
     st.markdown("Indicadores clave en tiempo real sobre las finanzas, ventas y estado del stock.")
     
-    # Procesar datos de ventas e inventario para KPIs
     total_facturado = 0.0
     ganancia_total = 0.0
     unidades_vendidas = 0
@@ -82,14 +81,11 @@ with tab_dash:
         cant_transacciones = len(df_ventas)
         ticket_promedio = total_facturado / cant_transacciones if cant_transacciones > 0 else 0.0
         
-        # Calcular ganancia neta estimada cruzando con los costos actuales del inventario
         if not df.empty and "costo_unitario" in df.columns:
-            # Unir ventas con inventario para conocer el costo unitario de lo vendido
             df_cruce = df_ventas.merge(df[["id_item", "costo_unitario"]], on="id_item", how="left")
             df_cruce["costo_unitario"] = pd.to_numeric(df_cruce["costo_unitario"], errors="coerce").fillna(0)
             ganancia_total = ((df_cruce["precio_unitario"] - df_cruce["costo_unitario"]) * df_cruce["cantidad"]).sum()
             
-            # Producto estrella
             top_prod = df_ventas.groupby("producto")["cantidad"].sum()
             if not top_prod.empty:
                 producto_estrella = top_prod.idxmax()
@@ -98,24 +94,20 @@ with tab_dash:
         df["stock_actual"] = pd.to_numeric(df["stock_actual"], errors="coerce").fillna(0)
         stock_critico = len(df[df["stock_actual"] <= 3])
 
-    # Fila 1 de Métricas Principales (KPIs)
     col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
     col_kpi1.metric(label="💰 Facturación Total", value=f"${total_facturado:,.2f}")
     col_kpi2.metric(label="📈 Ganancia Neta Total", value=f"${ganancia_total:,.2f}")
     col_kpi3.metric(label="🛒 Transacciones", value=f"{cant_transacciones}")
     col_kpi4.metric(label="🌱 Unidades Vendidas", value=f"{unidades_vendidas}")
 
-    # Fila 2 de Métricas Secundarias
     col_kpi5, col_kpi6, col_kpi7 = st.columns(3)
     col_kpi5.metric(label="💵 Ticket Promedio por Venta", value=f"${ticket_promedio:,.2f}")
     col_kpi6.metric(label="⭐ Producto Estrella", value=str(producto_estrella))
     col_kpi7.metric(label="⚠️ Ítems en Stock Crítico (≤3)", value=f"{stock_critico} productos")
 
     st.markdown("---")
-    
-    # Vista rápida de accesos / alertas
     if stock_critico > 0:
-        st.warning(f"⚠️ **Atención:** Tenés {stock_critico} productos con stock crítico (menos de 3 unidades). Revisá la pestaña de Inventario o Control de Stock para reponer.")
+        st.warning(f"⚠️ **Atención:** Tenés {stock_critico} productos con stock crítico (menos de 3 unidades).")
     else:
         st.success("✅ ¡Todo el stock se encuentra en niveles normales o seguros!")
 
@@ -172,9 +164,9 @@ with tab_inv:
 
 with tab_ventas:
     st.header("🛒 Módulo de Registro de Ventas & Mostrador")
-    st.markdown("Realizá ventas rápidas mediante buscador, panel de botones directos o consultá el historial.")
+    st.markdown("Realizá ventas rápidas, accesos directos o corregí errores eliminando ventas mal cargadas.")
 
-    sub_tab_reg, sub_tab_rapido, sub_tab_hist = st.tabs(["💰 Venta Estándar", "⚡ Accesos Directos (Mostrador)", "📋 Historial & Tickets"])
+    sub_tab_reg, sub_tab_rapido, sub_tab_hist = st.tabs(["💰 Venta Estándar", "⚡ Accesos Directos (Mostrador)", "📋 Historial, Tickets & Anulaciones"])
 
     with sub_tab_reg:
         if df.empty:
@@ -272,15 +264,15 @@ with tab_ventas:
                                 st.error(f"Error en venta flash: {e}")
 
     with sub_tab_hist:
-        st.markdown("### 📈 Historial Completo y Resumen de Facturación")
+        st.markdown("### 📈 Historial Completo, Resumen y Corrección de Ventas")
         try:
             resp_ventas = supabase.table("ventas").select("*").execute()
-            df_ventas = pd.DataFrame(resp_ventas.data)
+            df_ventas_hist = pd.DataFrame(resp_ventas.data)
             
-            if not df_ventas.empty:
-                total_facturado = pd.to_numeric(df_ventas["total"], errors="coerce").sum()
-                total_unidades = pd.to_numeric(df_ventas["cantidad"], errors="coerce").sum()
-                cantidad_transacciones = len(df_ventas)
+            if not df_ventas_hist.empty:
+                total_facturado = pd.to_numeric(df_ventas_hist["total"], errors="coerce").sum()
+                total_unidades = pd.to_numeric(df_ventas_hist["cantidad"], errors="coerce").sum()
+                cantidad_transacciones = len(df_ventas_hist)
 
                 col_1, col_2, col_3 = st.columns(3)
                 col_1.metric(label="Facturación Total Acumulada", value=f"${total_facturado:,.2f}")
@@ -288,11 +280,52 @@ with tab_ventas:
                 col_3.metric(label="Cantidad de Ventas", value=f"{cantidad_transacciones}")
 
                 st.markdown("---")
-                st.dataframe(df_ventas, use_container_width=True)
+                st.dataframe(df_ventas_hist, use_container_width=True)
+                
+                st.markdown("### ❌ Anular / Eliminar Venta Mal Cargada")
+                st.markdown("Seleccioná la venta por su identificador en la base de datos para borrarla y reponer automáticamente el stock.")
+                
+                # Crear opciones claras para elegir la venta a borrar
+                df_ventas_hist["display_venta"] = "ID Venta: " + df_ventas_hist["id"].astype(str) + " | Fecha: " + df_ventas_hist["fecha"].astype(str) + " | Prod: " + df_ventas_hist["producto"].astype(str) + " (" + df_ventas_hist["cantidad"].astype(str) + " un. - $" + df_ventas_hist["total"].astype(str) + ")"
+                
+                venta_a_anular = st.selectbox("Seleccionar venta a anular", df_ventas_hist["display_venta"].tolist())
+                
+                match_anular = df_ventas_hist[df_ventas_hist["display_venta"] == venta_a_anular]
+                if not match_anular.empty:
+                    v_sel = match_anular.iloc[0]
+                    
+                    st.warning(f"⚠️ Vas a eliminar la venta del producto **{v_sel['producto']}** ({v_sel['cantidad']} unidades) por un total de **${v_sel['total']}**. Esta acción devolverá las unidades al stock del inventario.")
+                    conf_anular = st.checkbox("Confirmo que deseo anular esta venta y reponer el stock")
+                    
+                    if st.button("🗑️ Anular Venta Seleccionada", type="primary"):
+                        if conf_anular:
+                            try:
+                                id_venta_db = v_sel["id"]
+                                id_item_afectado = v_sel["id_item"]
+                                cant_devuelta = int(v_sel["cantidad"])
+                                
+                                # 1. Buscar stock actual del producto en inventario para sumarle lo devuelto
+                                resp_inv_prod = supabase.table("inventario").select("stock_actual").eq("id_item", str(id_item_afectado)).execute()
+                                if resp_inv_prod.data:
+                                    stock_actual_inv = int(resp_inv_prod.data[0]["stock_actual"])
+                                    nuevo_stock_restituido = stock_actual_inv + cant_devuelta
+                                    
+                                    # Actualizar inventario devolviendo el stock
+                                    supabase.table("inventario").update({"stock_actual": nuevo_stock_restituido}).eq("id_item", str(id_item_afectado)).execute()
+                                
+                                # 2. Eliminar el registro de la tabla ventas
+                                supabase.table("ventas").delete().eq("id", id_venta_db).execute()
+                                
+                                st.success("¡Venta anulada con éxito y stock repuesto correctamente!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al anular la venta: {e}")
+                        else:
+                            st.error("Debes tildar la casilla de confirmación.")
             else:
                 st.info("Todavía no hay ventas registradas en Supabase.")
         except Exception as e:
-            st.warning("No se pudo cargar el historial.")
+            st.warning(f"No se pudo cargar el historial de ventas: {e}")
 
 with tab_reportes:
     st.header("📊 Reportes y Estadísticas de Vivero")
