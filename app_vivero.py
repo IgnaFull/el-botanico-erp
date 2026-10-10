@@ -216,7 +216,9 @@ elif menu == "Registro de Ventas":
                             try:
                                 nuevo_stock = stock_disponible - cant_a_vender
                                 total_venta = cant_a_vender * precio_cobrado
-                                fecha_hora_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                from datetime import timedelta
+                                # Ajustar restando 3 horas para la hora local de Argentina (UTC-3)
+                                fecha_hora_actual = (datetime.now() - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
                                 
                                 supabase.table("inventario").update({"stock_actual": nuevo_stock}).eq("id_item", str(p_data["id_item"])).execute()
                                 
