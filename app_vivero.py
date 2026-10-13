@@ -48,16 +48,15 @@ if not df.empty:
     # Columna combinada interna para los selectores
     df["opcion_display"] = df["id_item"].astype(str) + " - " + df["producto"].astype(str) + " (" + df["contenedor"].astype(str) + ")"
 
-# --- ORDEN EXACTO DE MÓDULOS ---
-tab_dash, tab_inv, tab_stock, tab_ventas_1, tab_precios, tab_ventas_2, tab_reportes, tab_config = st.tabs([
+# --- ORDEN OPTIMIZADO DE MÓDULOS (6 PESTAÑAS LIMPIAS) ---
+tab_dash, tab_inv, tab_stock, tab_ventas, tab_precios, tab_reportes, tab_config = st.tabs([
     "1. 📊 Dashboard",
     "2. 📦 Inventario General", 
     "3. 📊 Control de Stock", 
-    "4. 🛒 Registro de Ventas",
+    "4. 🛒 Caja y Ventas",
     "5. 🏷️ Actualizar Precios",
-    "6. 🛒 Registro de Ventas",
-    "7. 📈 Reportes",
-    "8. ⚙️ Configuración"
+    "6. 📈 Reportes",
+    "7. ⚙️ Configuración"
 ])
 
 with tab_dash:
@@ -95,6 +94,7 @@ with tab_dash:
         df["stock_actual"] = pd.to_numeric(df["stock_actual"], errors="coerce").fillna(0)
         stock_critico = len(df[df["stock_actual"] <= 3])
 
+    # Tarjetas visuales de KPIs
     col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
     col_kpi1.metric(label="💰 Facturación Total", value=f"${total_facturado:,.2f}")
     col_kpi2.metric(label="📈 Ganancia Neta Total", value=f"${ganancia_total:,.2f}")
@@ -102,9 +102,9 @@ with tab_dash:
     col_kpi4.metric(label="🌱 Unidades Vendidas", value=f"{unidades_vendidas}")
 
     col_kpi5, col_kpi6, col_kpi7 = st.columns(3)
-    col_kpi5.metric(label="💵 Ticket Promedio por Venta", value=f"${ticket_promedio:,.2f}")
+    col_kpi5.metric(label="💵 Ticket Promedio", value=f"${ticket_promedio:,.2f}")
     col_kpi6.metric(label="⭐ Producto Estrella", value=str(producto_estrella))
-    col_kpi7.metric(label="⚠️ Ítems en Stock Crítico (≤3)", value=f"{stock_critico} productos")
+    col_kpi7.metric(label="⚠️ Stock Crítico (≤3)", value=f"{stock_critico} productos")
 
     st.markdown("---")
     if stock_critico > 0:
@@ -114,9 +114,12 @@ with tab_dash:
 
 with tab_inv:
     st.header("📦 Inventario General y Stock en Tiempo Real")
-    st.markdown("Consulta general con semáforo de stock (🔴 Crítico ≤ 3 | 🟡 Bajo ≤ 10 | 🟢 Normal).")
+    st.markdown("Consulta general con semáforo de stock (🔴 Crítico ≤ 3 | 🟡 Bajo ≤ 10 | 🟢 Normal).[cite: 5]")
     
     if not df.empty and "familia" in df.columns:
+        # Filtro rápido de stock crítico
+        ver_solo_critico = st.checkbox("🚨 Filtrar y mostrar únicamente productos en stock crítico (≤ 3 unidades)")
+        
         familias = ["Todas"] + list(df["familia"].dropna().unique())
         familia_seleccionada = st.selectbox("Filtrar por Familia", familias, key="filtro_fam_inv")
         
@@ -124,6 +127,9 @@ with tab_inv:
             df_filtrado = df[df["familia"] == familia_seleccionada]
         else:
             df_filtrado = df
+            
+        if ver_solo_critico:
+            df_filtrado = df_filtrado[df_filtrado["stock_actual"] <= 3]
             
         busqueda = st.text_input("🔍 Buscar por nombre, especie o ID:", key="busqueda_inv")
         if busqueda:
@@ -301,106 +307,84 @@ with tab_stock:
             st.subheader("📋 Estado Actual del Inventario y Stock")
             st.dataframe(df_resumen_stock, use_container_width=True)
 
-with tab_ventas_1:
-    st.header("🛒 Registro de Ventas - Venta Estándar y Mostrador")
-    st.markdown("Seleccioná un producto, verificá su precio y stock, y registrá la venta al instante.")
+with tab_ventas:
+    st.header("🛒 Caja y Registro de Ventas - El Botánico")
+    st.markdown("Realizá ventas con cálculo de vuelto, ventas rápidas flash o gestioná el historial de caja.")
 
-    if df.empty:
-        st.warning("No hay productos disponibles en el inventario para vender.")
-    else:
-        producto_venta = st.selectbox("Seleccionar Producto / Insumo a Vender", df["opcion_display"].tolist(), key="select_venta_std")
-        
-        match_v = df[df["opcion_display"] == producto_venta]
-        if not match_v.empty:
-            p_data = match_v.iloc[0]
-            stock_disponible = int(p_data["stock_actual"]) if pd.notna(p_data["stock_actual"]) else 0
-            precio_registrado = float(p_data["precio_venta"]) if pd.notna(p_data["precio_venta"]) else 0.0
+    sub_tab_std, sub_tab_rapido, sub_tab_hist = st.tabs([
+        "💰 Venta Mostrador & Vuelto", 
+        "⚡ Botones Flash", 
+        "📋 Historial & Anulaciones"
+    ])
+
+    with sub_tab_std:
+        if df.empty:
+            st.warning("No hay productos disponibles en el inventario para vender.")
+        else:
+            producto_venta = st.selectbox("Seleccionar Producto / Insumo a Vender", df["opcion_display"].tolist(), key="select_venta_std")
             
-            col_info1, col_info2, col_info3 = st.columns(3)
-            col_info1.metric("📦 ID de Ítem", str(p_data["id_item"]))
-            col_info2.metric("🌱 Stock Disponible", f"{stock_disponible} un.")
-            col_info3.metric("💲 Precio Sugerido", f"${precio_registrado:,.2f}")
-            
-            st.markdown("---")
-            with st.form("form_registrar_venta_std"):
-                cant_a_vender = st.number_input("Cantidad a vender", min_value=1, max_value=max(1, stock_disponible), value=1, step=1)
-                precio_cobrado = st.number_input("Precio unitario de venta ($) [Editable]", min_value=0.0, value=precio_registrado, step=10.0)
-                cliente = st.text_input("Cliente (Opcional)", value="General")
+            match_v = df[df["opcion_display"] == producto_venta]
+            if not match_v.empty:
+                p_data = match_v.iloc[0]
+                stock_disponible = int(p_data["stock_actual"]) if pd.notna(p_data["stock_actual"]) else 0
+                precio_registrado = float(p_data["precio_venta"]) if pd.notna(p_data["precio_venta"]) else 0.0
                 
-                completar_venta_btn = st.form_submit_button("✅ Confirmar Venta y Descontar Stock")
+                col_info1, col_info2, col_info3 = st.columns(3)
+                col_info1.metric("📦 ID de Ítem", str(p_data["id_item"]))
+                col_info2.metric("🌱 Stock Disponible", f"{stock_disponible} un.")
+                col_info3.metric("💲 Precio Sugerido", f"${precio_registrado:,.2f}")
                 
-                if completar_venta_btn:
-                    if cant_a_vender > stock_disponible:
-                        st.error("No hay suficiente stock para realizar esta venta.")
-                    else:
-                        try:
-                            nuevo_stock = stock_disponible - cant_a_vender
-                            total_venta = cant_a_vender * precio_cobrado
-                            fecha_hora_actual = (datetime.now() - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
-                            
-                            supabase.table("inventario").update({"stock_actual": nuevo_stock}).eq("id_item", str(p_data["id_item"])).execute()
-                            
-                            venta_registro = {
-                                "id_item": str(p_data["id_item"]),
-                                "producto": str(p_data["producto"]),
-                                "cantidad": cant_a_vender,
-                                "precio_unitario": precio_cobrado,
-                                "total": total_venta,
-                                "cliente": cliente.strip(),
-                                "fecha": fecha_hora_actual
-                            }
-                            supabase.table("ventas").insert(venta_registro).execute()
-                            
-                            st.success(f"¡Venta registrada con éxito! Total: ${total_venta:,.2f}. Stock actualizado.")
-                            
-                            st.markdown("### 🧾 Comprobante / Ticket Digital")
-                            ticket_txt = f"🌿 *EL BOTÁNICO - TICKET DE VENTA*\n📅 Fecha: {fecha_hora_actual}\n👤 Cliente: {cliente.strip()}\n--------------------------------\n🌱 Producto: {p_data['producto']} ({p_data['contenedor']})\n🔢 Cantidad: {cant_a_vender}\n💲 Precio Unit.: ${precio_cobrado:,.2f}\n💰 *TOTAL: ${total_venta:,.2f}*\n--------------------------------\n¡Gracias por tu compra!"
-                            st.code(ticket_txt, language="markdown")
-                        except Exception as e:
-                            st.error(f"Error al procesar la venta: {e}")
+                st.markdown("---")
+                with st.form("form_registrar_venta_std"):
+                    cant_a_vender = st.number_input("Cantidad a vender", min_value=1, max_value=max(1, stock_disponible), value=1, step=1)
+                    precio_cobrado = st.number_input("Precio unitario de venta ($) [Editable]", min_value=0.0, value=precio_registrado, step=10.0)
+                    cliente = st.text_input("Cliente (Opcional)", value="General")
+                    
+                    # Campo para calcular el vuelto en efectivo
+                    efectivo_recibido = st.number_input("💵 Efectivo recibido del cliente ($) [Para cálculo de vuelto]", min_value=0.0, value=0.0, step=100.0)
+                    
+                    completar_venta_btn = st.form_submit_button("✅ Confirmar Venta y Descontar Stock")
+                    
+                    if completar_venta_btn:
+                        if cant_a_vender > stock_disponible:
+                            st.error("No hay suficiente stock para realizar esta venta.")
+                        else:
+                            try:
+                                nuevo_stock = stock_disponible - cant_a_vender
+                                total_venta = cant_a_vender * precio_cobrado
+                                vuelto = efectivo_recibido - total_venta if efectivo_recibido >= total_venta else 0.0
+                                
+                                fecha_hora_actual = (datetime.now() - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
+                                
+                                supabase.table("inventario").update({"stock_actual": nuevo_stock}).eq("id_item", str(p_data["id_item"])).execute()
+                                
+                                venta_registro = {
+                                    "id_item": str(p_data["id_item"]),
+                                    "producto": str(p_data["producto"]),
+                                    "cantidad": cant_a_vender,
+                                    "precio_unitario": precio_cobrado,
+                                    "total": total_venta,
+                                    "cliente": cliente.strip(),
+                                    "fecha": fecha_hora_actual
+                                }
+                                supabase.table("ventas").insert(venta_registro).execute()
+                                
+                                st.success(f"¡Venta registrada con éxito! Total: ${total_venta:,.2f}. Stock actualizado.")
+                                
+                                if efectivo_recibido > 0:
+                                    if efectivo_recibido >= total_venta:
+                                        st.info(f"💵 **Vuelto a entregar al cliente:** ${vuelto:,.2f}")
+                                    else:
+                                        st.warning(f"⚠️ El efectivo recibido es menor al total de la venta por ${total_venta - efectivo_recibido:,.2f}")
 
-with tab_precios:
-    st.header("🏷️ Módulo de Actualización de Precios")
-    st.markdown("Modificá de forma directa el Costo Unitario y el Precio de Venta de cualquier producto.")
-
-    if df.empty:
-        st.warning("No hay productos cargados.")
-    else:
-        prod_precio_elegido = st.selectbox("Seleccionar producto", df["opcion_display"].tolist(), key="select_precio_tab")
-        match_p = df[df["opcion_display"] == prod_precio_elegido]
-        if not match_p.empty:
-            p_item = match_p.iloc[0]
-            costo_actual = float(p_item["costo_unitario"]) if pd.notna(p_item["costo_unitario"]) else 0.0
-            precio_actual = float(p_item["precio_venta"]) if pd.notna(p_item["precio_venta"]) else 0.0
-            
-            col_m1, col_m2 = st.columns(2)
-            col_m1.metric("Costo Unitario Actual", f"${costo_actual:,.2f}")
-            col_m2.metric("Precio de Venta Actual", f"${precio_actual:,.2f}")
-
-            st.markdown("---")
-            with st.form("form_precios_tab"):
-                nuevo_costo = st.number_input("Nuevo Costo Unitario ($)", min_value=0.0, value=costo_actual, step=10.0)
-                nuevo_precio_venta = st.number_input("Nuevo Precio de Venta ($)", min_value=0.0, value=precio_actual, step=10.0)
-                
-                if st.form_submit_button("💾 Guardar Nuevos Precios"):
-                    try:
-                        supabase.table("inventario").update({
-                            "costo_unitario": nuevo_costo,
-                            "precio_venta": nuevo_precio_venta
-                        }).eq("id_item", str(p_item["id_item"])).execute()
-                        st.success("¡Precios actualizados con éxito!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error al actualizar precios: {e}")
-
-with tab_ventas_2:
-    st.header("🛒 Registro de Ventas - Historial y Anulaciones")
-    st.markdown("Consultá el historial de ventas, facturación total y corregí anulando ventas mal cargadas.")
-
-    sub_tab_rapido, sub_tab_hist = st.tabs(["⚡ Accesos Directos (Mostrador Flash)", "📋 Historial & Anulaciones"])
+                                st.markdown("### 🧾 Comprobante / Ticket Digital")
+                                ticket_txt = f"🌿 *EL BOTÁNICO - TICKET DE VENTA*\n📅 Fecha: {fecha_hora_actual}\n👤 Cliente: {cliente.strip()}\n--------------------------------\n🌱 Producto: {p_data['producto']} ({p_data['contenedor']})\n🔢 Cantidad: {cant_a_vender}\n💲 Precio Unit.: ${precio_cobrado:,.2f}\n💰 *TOTAL: ${total_venta:,.2f}*\n💵 Efectivo: ${efectivo_recibido:,.2f}\n🪙 Vuelto: ${vuelto:,.2f}\n--------------------------------\n¡Gracias por tu compra!"
+                                st.code(ticket_txt, language="markdown")
+                            except Exception as e:
+                                st.error(f"Error al procesar la venta: {e}")
 
     with sub_tab_rapido:
-        st.markdown("### ⚡ Botones Rápidos para Mostrador")
+        st.markdown("### ⚡ Botones Flash para Mostrador")
         st.markdown("Hacé clic en cualquiera de los productos destacados para vender 1 unidad al precio sugerido al instante.")
         
         if df.empty:
@@ -497,6 +481,40 @@ with tab_ventas_2:
         except Exception as e:
             st.warning(f"No se pudo cargar el historial de ventas: {e}")
 
+with tab_precios:
+    st.header("🏷️ Módulo de Actualización de Precios")
+    st.markdown("Modificá de forma directa el Costo Unitario y el Precio de Venta de cualquier producto.")
+
+    if df.empty:
+        st.warning("No hay productos cargados.")
+    else:
+        prod_precio_elegido = st.selectbox("Seleccionar producto", df["opcion_display"].tolist(), key="select_precio_tab")
+        match_p = df[df["opcion_display"] == prod_precio_elegido]
+        if not match_p.empty:
+            p_item = match_p.iloc[0]
+            costo_actual = float(p_item["costo_unitario"]) if pd.notna(p_item["costo_unitario"]) else 0.0
+            precio_actual = float(p_item["precio_venta"]) if pd.notna(p_item["precio_venta"]) else 0.0
+            
+            col_m1, col_m2 = st.columns(2)
+            col_m1.metric("Costo Unitario Actual", f"${costo_actual:,.2f}")
+            col_m2.metric("Precio de Venta Actual", f"${precio_actual:,.2f}")
+
+            st.markdown("---")
+            with st.form("form_precios_tab"):
+                nuevo_costo = st.number_input("Nuevo Costo Unitario ($)", min_value=0.0, value=costo_actual, step=10.0)
+                nuevo_precio_venta = st.number_input("Nuevo Precio de Venta ($)", min_value=0.0, value=precio_actual, step=10.0)
+                
+                if st.form_submit_button("💾 Guardar Nuevos Precios"):
+                    try:
+                        supabase.table("inventario").update({
+                            "costo_unitario": nuevo_costo,
+                            "precio_venta": nuevo_precio_venta
+                        }).eq("id_item", str(p_item["id_item"])).execute()
+                        st.success("¡Precios actualizados con éxito!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al actualizar precios: {e}")
+
 with tab_reportes:
     st.header("📈 Reportes y Estadísticas de Vivero")
     st.markdown("Análisis visual del rendimiento comercial y rotación de productos.")
@@ -527,9 +545,48 @@ with tab_reportes:
         st.warning(f"No se pudieron cargar los reportes gráficos: {e}")
 
 with tab_config:
-    st.header("⚙️ Módulo de Configuración General")
-    st.markdown("Personalizá la apariencia visual, las columnas visibles, restaurá o borrá el catálogo de familias e inventario.")
+    st.header("⚙️ Módulo de Configuración General & Importación de Excel")
+    st.markdown("Personalizá la apariencia, cargá planillas de Excel de tu hermano o gestioná la base de datos.")
     
+    # --- SECCIÓN NUEVA: IMPORTAR EXCEL ---
+    st.subheader("📂 Importador de Excel (Para sincronizar el archivo de tu hermano)")
+    st.markdown("Subí el archivo de Excel (`.xlsx` o `.csv`) que mantiene tu hermano para actualizar masivamente el inventario, stock y precios en Supabase.")
+    
+    archivo_subido = st.file_uploader("Seleccionar archivo Excel / CSV", type=["xlsx", "csv"])
+    if archivo_subido is not None:
+        try:
+            if archivo_subido.name.endswith('.csv'):
+                df_excel = pd.read_csv(archivo_subido)
+            else:
+                df_excel = pd.read_excel(archivo_subido)
+                
+            st.write("Vista previa de los datos leídos del archivo:", df_excel.head(3))
+            
+            if st.button("🚀 Sincronizar e Importar Datos a Supabase", type="primary"):
+                contador_exitos = 0
+                for _, row in df_excel.iterrows():
+                    # Asegurar campos mínimos
+                    if "id_item" in row and pd.notna(row["id_item"]):
+                        item_data = {
+                            "id_item": str(row["id_item"]).strip().upper(),
+                            "familia": str(row.get("familia", "PLANTAS")).strip().upper(),
+                            "categoria": str(row.get("categoria", "-")).strip().upper(),
+                            "subcategoria": str(row.get("subcategoria", "-")).strip(),
+                            "producto": str(row.get("producto", "PRODUCTO")).strip().upper(),
+                            "contenedor": str(row.get("contenedor", "-")).strip().upper(),
+                            "stock_actual": int(row.get("stock_actual", 0)) if pd.notna(row.get("stock_actual")) else 0,
+                            "costo_unitario": float(row.get("costo_unitario", 0.0)) if pd.notna(row.get("costo_unitario")) else 0.0,
+                            "precio_venta": float(row.get("precio_venta", 0.0)) if pd.notna(row.get("precio_venta")) else 0.0
+                        }
+                        supabase.table("inventario").upsert(item_data, on_conflict="id_item").execute()
+                        contador_exitos += 1
+                        
+                st.success(f"¡Sincronización completada! Se actualizaron/importaron {contador_exitos} registros correctamente desde el Excel.")
+                st.rerun()
+        except Exception as e:
+            st.error(f"Error al leer o importar el archivo Excel: {e}")
+
+    st.markdown("---")
     col_cfg1, col_cfg2 = st.columns(2)
     
     with col_cfg1:
@@ -579,14 +636,13 @@ with tab_config:
 
     with col_cfg2:
         st.subheader("🗑️ Borrar Todas las Familias e Ítems")
-        st.markdown("⚠️ **Peligro:** Esto eliminará absolutamente todo el inventario y familias de la base de datos.")
+        st.markdown("⚠️ **Peligro:** Esto eliminará absolutamente todo el inventario de la base de datos.")
         conf_borrar_todo = st.checkbox("Confirmo que quiero borrar TODAS las familias y productos", key="chk_borrar_todo")
         if st.button("🔥 Borrar Todo el Inventario (Vaciar Tabla)", type="primary", key="btn_borrar_todo"):
             if conf_borrar_todo:
                 try:
-                    # Borrar todos los registros de la tabla inventario
                     supabase.table("inventario").delete().neq("id_item", "FILTRO_FALTO_PARA_BORRAR_TODO").execute()
-                    st.success("¡Todas las familias y productos fueron eliminados de la base de datos!")
+                    st.success("¡Todas las familias y productos fueron eliminados!")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error al borrar: {e}")
